@@ -332,7 +332,8 @@ public class Jugador {
         } else if (spriteIdle != null) {
             spriteActual = spriteIdle;
         }
-        if (audioGameOver != null) clipGameOver = AudioPlayer.playOnce(audioGameOver);
+        // Reproducir audio de Game Over de forma no bloqueante para no congelar el EDT
+        if (audioGameOver != null) AudioPlayer.playOnceAsync(audioGameOver, c -> clipGameOver = c);
         
         // Iniciar animación de derrota controlada
         enAnimacionDerrota = true;

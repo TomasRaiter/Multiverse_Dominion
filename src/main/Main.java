@@ -30,6 +30,11 @@ class BackgroundPanel extends JPanel {
 public class Main {
     // Nivel actual del Modo Historia (0-based)
     private static int historiaNivelActual = 0;
+    // Temporizador de campaña y mejores tiempos
+    private static long historiaStartMillis = -1L;
+    // Nombre de la campaña para asociar al Top
+    private static String historiaNombreCampana = "";
+    public static final boolean MODO_TEST_BOSS_SUAVE = false;
     public static void main(String[] args) {
         SwingUtilities.invokeLater(Main::mostrarPreMenu);
     }
@@ -58,9 +63,10 @@ public class Main {
         titulo.setFont(new Font("Courier New", Font.BOLD, 42));
 
         JButton btnHistoria = new JButton("Historia");
+        JButton btnTop3 = new JButton("Top 3");
         JButton btnPvP = new JButton("PvP");
         JButton btnSalir = new JButton("Salir");
-        for (JButton b : new JButton[]{btnHistoria, btnPvP, btnSalir}) {
+        for (JButton b : new JButton[]{btnHistoria, btnTop3, btnPvP, btnSalir}) {
             b.setFont(new Font("Monospaced", Font.BOLD, 24));
             b.setBackground(PIXEL_RED_DARK);
             b.setForeground(Color.BLACK);
@@ -76,8 +82,9 @@ public class Main {
         gbc.anchor = GridBagConstraints.CENTER;
         panel.add(titulo, gbc);
         gbc.gridy = 1; panel.add(btnHistoria, gbc);
-        gbc.gridy = 2; panel.add(btnPvP, gbc);
-        gbc.gridy = 3; panel.add(btnSalir, gbc);
+        gbc.gridy = 2; panel.add(btnTop3, gbc);
+        gbc.gridy = 3; panel.add(btnPvP, gbc);
+        gbc.gridy = 4; panel.add(btnSalir, gbc);
 
         // Fondo del premenú (si existe)
         ImageIcon fondoIntro = cargarIcono("/resources/Intro/intro.png", 1920, 1080);
@@ -90,9 +97,14 @@ public class Main {
         }
 
         btnHistoria.addActionListener(ae -> {
-            frame.dispose();
-            // Cargar progreso guardado
+            // Cargar progreso guardado y pedir nombre de campaña antes de la intro
             cargarProgresoHistoria();
+            boolean accepted = mostrarNombreCampanaDialog();
+            if (!accepted) {
+                // Cancelado: permanecer en el pre-menú
+                return;
+            }
+            frame.dispose();
             // Mostrar cinemáticas solo si estamos en el primer nivel
             if (historiaNivelActual == 0) {
                 String[] textos = new String[]{
@@ -118,16 +130,17 @@ public class Main {
         btnPvP.addActionListener(ae -> { frame.dispose(); mostrarMenuYArrancar(false); });
         btnSalir.addActionListener(ae -> { frame.dispose(); System.exit(0); });
 
+        // Botón para ver Top 3 de mejores tiempos (por nombre)
+        btnTop3.addActionListener(ae -> mostrarTop3Dialog(frame));
+
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
     }
 
     // Selección de personaje para Historia por nivel (bloqueante)
     public static String seleccionarPersonajeHistoria(int nivelIndex) {
-        // Configurar opciones permitidas
-        String[] opcionesVisibles = (nivelIndex == 0)
-                ? new String[]{"Mr. Increíble"}
-                : new String[]{"Batman", "Mr. Increíble"};
+        // Opciones disponibles según progreso: siempre "Mr. Increíble" + oponentes vencidos
+        String[] opcionesVisibles = obtenerOpcionesJ1Historia();
 
         JDialog dialog = new JDialog((Frame) null, "Selecciona tu héroe", true);
         dialog.setUndecorated(true);
@@ -452,45 +465,39 @@ public class Main {
                 case 0 -> { // Nivel 1: Mr. Increíble vs Batman en Metroville
                     nombreOponente = "Batman";
                     nombreFondo = "Metro Ville";
-                    opcionesJ1 = new String[]{"Mr. Increíble"};
                 }
-                case 1 -> { // Nivel 2: elegir Batman o Mr. Increíble vs Iron Man en Batcave
+                case 1 -> { // Nivel 2: vs Iron Man en Batcave
                     nombreOponente = "Iron Man";
                     nombreFondo = "Batcave";
-                    opcionesJ1 = new String[]{"Batman", "Mr. Increíble"};
                 }
-                case 2 -> { // Nivel 3: contra Ash en Pokémon Stadium
+                case 2 -> { // Nivel 3: vs Ash en Pokémon Stadium
                     nombreOponente = "Ash";
                     nombreFondo = "Pokémon Stadium";
-                    opcionesJ1 = new String[]{"Batman", "Mr. Increíble"};
                 }
-                case 3 -> { // Nivel 4: contra Naruto en Konoha
+                case 3 -> { // Nivel 4: vs Naruto en Konoha
                     nombreOponente = "Naruto";
                     nombreFondo = "Konohagakure";
-                    opcionesJ1 = new String[]{"Batman", "Mr. Increíble"};
                 }
-                case 4 -> { // Nivel 5: contra Goku en Kame House
+                case 4 -> { // Nivel 5: vs Goku en Kame House
                     nombreOponente = "Goku";
                     nombreFondo = "Kame House";
-                    opcionesJ1 = new String[]{"Batman", "Mr. Increíble"};
                 }
-                case 5 -> { // Nivel 6: contra Pyke en Bilgewater
+                case 5 -> { // Nivel 6: vs Pyke en Bilgewater
                     nombreOponente = "Pyke";
                     nombreFondo = "Bilgewater";
-                    opcionesJ1 = new String[]{"Batman", "Mr. Increíble"};
                 }
-                case 6 -> { // Nivel 7: contra Luke en granero
+                case 6 -> { // Nivel 7: vs Luke en granero
                     nombreOponente = "Luke Skywalker";
                     nombreFondo = "Luke House";
-                    opcionesJ1 = new String[]{"Batman", "Mr. Increíble"};
                 }
-                default -> { // Nivel 8: contra Darth Vader en Death Star
+                default -> { // Nivel 8: vs Darth Vader en Death Star
                     nombreOponente = "Darth Vader";
                     nombreFondo = "Death Star";
-                    opcionesJ1 = new String[]{"Batman", "Mr. Increíble"};
                 }
             }
-            // Aplicar valores iniciales fijos para Historia
+            // Opciones de J1 según progreso (Mr. Increíble + derrotados)
+            opcionesJ1 = obtenerOpcionesJ1Historia();
+            // Aplicar valores iniciales para Historia
             cbJ2.setSelectedItem(nombreOponente);
             cbFondo.setSelectedItem(nombreFondo);
             cbJ2.setEnabled(false);
@@ -605,6 +612,12 @@ public class Main {
         try {
             Preferences prefs = Preferences.userRoot().node("MultiverseDominion");
             prefs.putInt("historiaNivelActual", historiaNivelActual);
+            if (historiaStartMillis > 0) {
+                prefs.putLong("historiaStartMillis", historiaStartMillis);
+            }
+            if (historiaNombreCampana != null) {
+                prefs.put("historiaNombreCampana", historiaNombreCampana);
+            }
             System.out.println("[Historia] Progreso guardado: nivel=" + historiaNivelActual);
         } catch (Exception ex) {
             System.err.println("[Historia] No se pudo guardar progreso: " + ex.getMessage());
@@ -615,11 +628,341 @@ public class Main {
         try {
             Preferences prefs = Preferences.userRoot().node("MultiverseDominion");
             historiaNivelActual = Math.max(0, Math.min(7, prefs.getInt("historiaNivelActual", 0)));
+            historiaStartMillis = prefs.getLong("historiaStartMillis", -1L);
+            historiaNombreCampana = prefs.get("historiaNombreCampana", "");
             System.out.println("[Historia] Progreso cargado: nivel=" + historiaNivelActual);
         } catch (Exception ex) {
             System.err.println("[Historia] No se pudo cargar progreso: " + ex.getMessage());
             historiaNivelActual = 0;
+            historiaStartMillis = -1L;
+            historiaNombreCampana = "";
         }
+    }
+
+    // --- Temporizador de campaña y Top 3 ---
+    public static void iniciarTemporizadorHistoria() {
+        try {
+            if (historiaStartMillis <= 0) {
+                historiaStartMillis = System.currentTimeMillis();
+                Preferences.userRoot().node("MultiverseDominion").putLong("historiaStartMillis", historiaStartMillis);
+                System.out.println("[Historia] Temporizador iniciado: " + historiaStartMillis);
+            } else {
+                System.out.println("[Historia] Temporizador ya en curso: " + historiaStartMillis);
+            }
+        } catch (Exception ex) {
+            System.err.println("[Historia] No se pudo iniciar temporizador: " + ex.getMessage());
+        }
+    }
+
+    public static void reiniciarTemporizadorHistoria() {
+        try {
+            historiaStartMillis = System.currentTimeMillis();
+            Preferences.userRoot().node("MultiverseDominion").putLong("historiaStartMillis", historiaStartMillis);
+            System.out.println("[Historia] Temporizador reiniciado: " + historiaStartMillis);
+        } catch (Exception ex) {
+            System.err.println("[Historia] No se pudo reiniciar temporizador: " + ex.getMessage());
+        }
+    }
+
+    public static long getHistoriaStartMillis() { return historiaStartMillis; }
+
+    public static long finalizarCampaniaYRegistrarTiempo() {
+        long elapsed = -1L;
+        try {
+            Preferences prefs = Preferences.userRoot().node("MultiverseDominion");
+            long start = prefs.getLong("historiaStartMillis", historiaStartMillis);
+            if (start > 0) {
+                elapsed = System.currentTimeMillis() - start;
+                registrarTiempoEnTop(elapsed);
+            }
+            // limpiar temporizador
+            historiaStartMillis = -1L;
+            prefs.putLong("historiaStartMillis", -1L);
+            System.out.println("[Historia] Campaña finalizada. Tiempo total: " + elapsed + " ms");
+        } catch (Exception ex) {
+            System.err.println("[Historia] No se pudo finalizar/registrar tiempo: " + ex.getMessage());
+        }
+        return elapsed;
+    }
+
+    private static void registrarTiempoEnTop(long elapsedMillis) {
+        try {
+            Preferences prefs = Preferences.userRoot().node("MultiverseDominion");
+            long b1 = Math.max(0, prefs.getLong("bestTime1", 0));
+            long b2 = Math.max(0, prefs.getLong("bestTime2", 0));
+            long b3 = Math.max(0, prefs.getLong("bestTime3", 0));
+            String n1 = prefs.get("bestName1", "");
+            String n2 = prefs.get("bestName2", "");
+            String n3 = prefs.get("bestName3", "");
+
+            java.util.List<long[]> entries = new java.util.ArrayList<>();
+            if (b1 > 0) entries.add(new long[]{b1, 1});
+            if (b2 > 0) entries.add(new long[]{b2, 2});
+            if (b3 > 0) entries.add(new long[]{b3, 3});
+            // índice 0 = nuevo registro
+            entries.add(new long[]{elapsedMillis, 0});
+            entries.sort(java.util.Comparator.comparingLong(a -> a[0]));
+
+            long t1 = entries.size() > 0 ? entries.get(0)[0] : 0;
+            int i1 = entries.size() > 0 ? (int) entries.get(0)[1] : -1;
+            long t2 = entries.size() > 1 ? entries.get(1)[0] : 0;
+            int i2 = entries.size() > 1 ? (int) entries.get(1)[1] : -1;
+            long t3 = entries.size() > 2 ? entries.get(2)[0] : 0;
+            int i3 = entries.size() > 2 ? (int) entries.get(2)[1] : -1;
+
+            String newName = historiaNombreCampana != null && !historiaNombreCampana.isBlank() ? historiaNombreCampana : "Anónimo";
+            String nn1 = (i1 == 1 ? n1 : (i1 == 2 ? n2 : (i1 == 3 ? n3 : newName)));
+            String nn2 = (i2 == 1 ? n1 : (i2 == 2 ? n2 : (i2 == 3 ? n3 : newName)));
+            String nn3 = (i3 == 1 ? n1 : (i3 == 2 ? n2 : (i3 == 3 ? n3 : newName)));
+
+            prefs.putLong("bestTime1", t1);
+            prefs.putLong("bestTime2", t2);
+            prefs.putLong("bestTime3", t3);
+            prefs.put("bestName1", nn1);
+            prefs.put("bestName2", nn2);
+            prefs.put("bestName3", nn3);
+            System.out.println("[Historia] Top actualizado: " + t1 + "("+nn1+")" + ", " + t2 + "("+nn2+")" + ", " + t3 + "("+nn3+")");
+        } catch (Exception ex) {
+            System.err.println("[Historia] No se pudo actualizar Top 3: " + ex.getMessage());
+        }
+    }
+
+    public static String[] obtenerTop3Nombres() {
+        try {
+            Preferences prefs = Preferences.userRoot().node("MultiverseDominion");
+            String n1 = prefs.get("bestName1", "");
+            String n2 = prefs.get("bestName2", "");
+            String n3 = prefs.get("bestName3", "");
+            long b1 = Math.max(0, prefs.getLong("bestTime1", 0));
+            long b2 = Math.max(0, prefs.getLong("bestTime2", 0));
+            long b3 = Math.max(0, prefs.getLong("bestTime3", 0));
+            String f1 = b1 > 0 && n1 != null && !n1.isBlank() ? n1 : "Nadie ocupa este puesto aun.";
+            String f2 = b2 > 0 && n2 != null && !n2.isBlank() ? n2 : "Nadie ocupa este puesto aun.";
+            String f3 = b3 > 0 && n3 != null && !n3.isBlank() ? n3 : "Nadie ocupa este puesto aun.";
+            return new String[]{f1, f2, f3};
+        } catch (Exception ex) {
+            return new String[]{"Nadie ocupa este puesto aun.", "Nadie ocupa este puesto aun.", "Nadie ocupa este puesto aun."};
+        }
+    }
+
+    public static String formatMillis(long ms) {
+        if (ms <= 0) return "-";
+        long totalSeconds = ms / 1000;
+        long mins = totalSeconds / 60;
+        long secs = totalSeconds % 60;
+        long hundredths = (ms % 1000) / 10;
+        return String.format("%02d:%02d.%02d", mins, secs, hundredths);
+    }
+
+    // Formato hh:mm:ss para Top 3
+    public static String formatMillisHMS(long ms) {
+        if (ms <= 0) return "-";
+        long totalSeconds = ms / 1000;
+        long hours = totalSeconds / 3600;
+        long mins = (totalSeconds % 3600) / 60;
+        long secs = totalSeconds % 60;
+        return String.format("%02d:%02d:%02d", hours, mins, secs);
+    }
+
+    private static void mostrarTop3Dialog(Frame owner) {
+        JDialog dialog = new JDialog(owner, "Top 3", true);
+        dialog.setUndecorated(true);
+        dialog.setLayout(new BorderLayout(10, 10));
+        dialog.setSize(700, 420);
+        dialog.setLocationRelativeTo(owner);
+        Color PIXEL_BLACK = new Color(10, 10, 10);
+        Color PIXEL_RED = new Color(170, 0, 0);
+        Color PIXEL_RED_DARK = new Color(120, 0, 0);
+
+        JPanel container = new JPanel(new GridBagLayout());
+        container.setBackground(new Color(0, 0, 0, 220));
+        container.setBorder(javax.swing.BorderFactory.createCompoundBorder(
+                javax.swing.BorderFactory.createLineBorder(Color.BLACK, 6),
+                javax.swing.BorderFactory.createLineBorder(PIXEL_RED, 5)
+        ));
+
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridx = 0; gbc.insets = new Insets(10,10,10,10);
+        gbc.anchor = GridBagConstraints.CENTER;
+
+        JLabel titulo = new JLabel("Libertadores veloces del multiverso:", SwingConstants.CENTER);
+        titulo.setForeground(Color.WHITE);
+        titulo.setFont(new Font("Courier New", Font.BOLD, 28));
+        gbc.gridy = 0; container.add(titulo, gbc);
+
+        String[] nombres = obtenerTop3Nombres();
+        Preferences prefs = Preferences.userRoot().node("MultiverseDominion");
+        long b1 = Math.max(0, prefs.getLong("bestTime1", 0));
+        long b2 = Math.max(0, prefs.getLong("bestTime2", 0));
+        long b3 = Math.max(0, prefs.getLong("bestTime3", 0));
+        String t1 = b1 > 0 ? formatMillisHMS(b1) : "-";
+        String t2 = b2 > 0 ? formatMillisHMS(b2) : "-";
+        String t3 = b3 > 0 ? formatMillisHMS(b3) : "-";
+        JLabel l1 = new JLabel("top 1: " + nombres[0] + " — " + t1, SwingConstants.CENTER);
+        JLabel l2 = new JLabel("top 2: " + nombres[1] + " — " + t2, SwingConstants.CENTER);
+        JLabel l3 = new JLabel("top 3: " + nombres[2] + " — " + t3, SwingConstants.CENTER);
+        for (JLabel l : new JLabel[]{l1, l2, l3}) {
+            l.setForeground(PIXEL_RED);
+            l.setFont(new Font("Monospaced", Font.BOLD, 22));
+        }
+        gbc.gridy = 1; container.add(l1, gbc);
+        gbc.gridy = 2; container.add(l2, gbc);
+        gbc.gridy = 3; container.add(l3, gbc);
+
+        JButton cerrar = new JButton("Cerrar");
+        cerrar.setFont(new Font("Monospaced", Font.BOLD, 18));
+        cerrar.setBackground(PIXEL_RED_DARK);
+        cerrar.setForeground(Color.BLACK);
+        cerrar.setFocusPainted(false);
+        cerrar.setBorder(javax.swing.BorderFactory.createCompoundBorder(
+                javax.swing.BorderFactory.createLineBorder(Color.BLACK, 4),
+                javax.swing.BorderFactory.createLineBorder(PIXEL_RED, 3)
+        ));
+        cerrar.addActionListener(e -> dialog.dispose());
+        gbc.gridy = 4; container.add(cerrar, gbc);
+
+        dialog.setContentPane(container);
+        dialog.setVisible(true);
+    }
+
+    public static void setHistoriaNombreCampana(String nombre) {
+        historiaNombreCampana = nombre != null ? nombre : "";
+        try {
+            Preferences.userRoot().node("MultiverseDominion").put("historiaNombreCampana", historiaNombreCampana);
+        } catch (Exception ignore) {}
+    }
+
+    public static String getHistoriaNombreCampana() {
+        return historiaNombreCampana != null ? historiaNombreCampana : "";
+    }
+
+    // Mostrar intro de historia y luego ir al menú de selección
+    public static void mostrarIntroHistoria() {
+        // Preguntar nombre de campaña antes de mostrar la intro
+        boolean accepted = mostrarNombreCampanaDialog();
+        if (!accepted) {
+            mostrarPreMenu();
+            return;
+        }
+        String[] textos = new String[]{
+                "En los confines del multiverso... el Emperador extendió su dominio.",
+                "Su arma más temible no fue la fuerza... sino el control mental.",
+                "Uno a uno, los héroes más poderosos fueron esclavizados.",
+                "Pero las cadenas mentales comenzaron a romperse…",
+                "Ahora, los mundos colisionan… y solo los más fuertes se alzarán."
+        };
+        String base = "/resources/Intro/";
+        String[] fondos = new String[]{
+                base + "cinematica-1.png",
+                base + "cinematica-2.png",
+                base + "cinematica-3.png",
+                base + "cinematica-4.png",
+                base + "cinematica-5.png"
+        };
+        CinematicManager.mostrarCinematicasConFondosBlocking(textos, fondos);
+        mostrarMenuYArrancar(true);
+    }
+
+    // Diálogo pixel para pedir el nombre de la campaña
+    private static boolean mostrarNombreCampanaDialog() {
+        JDialog dialog = new JDialog((Frame) null, "Nombre de campaña", true);
+        dialog.setUndecorated(true);
+        dialog.setLayout(new BorderLayout(10, 10));
+        dialog.setSize(720, 240);
+        dialog.setLocationRelativeTo(null);
+        Color PIXEL_BLACK = new Color(10, 10, 10);
+        Color PIXEL_RED = new Color(170, 0, 0);
+        Color PIXEL_RED_DARK = new Color(120, 0, 0);
+
+        JPanel container = new JPanel(new BorderLayout(10, 10));
+        container.setBackground(Color.BLACK);
+        container.setBorder(javax.swing.BorderFactory.createCompoundBorder(
+                javax.swing.BorderFactory.createLineBorder(Color.BLACK, 6),
+                javax.swing.BorderFactory.createLineBorder(PIXEL_RED, 5)
+        ));
+
+        JLabel titulo = new JLabel("Nombre de la campaña", SwingConstants.CENTER);
+        titulo.setForeground(Color.WHITE);
+        titulo.setFont(new Font("Courier New", Font.BOLD, 26));
+        titulo.setBorder(BorderFactory.createEmptyBorder(10, 10, 4, 10));
+        container.add(titulo, BorderLayout.NORTH);
+
+        JPanel center = new JPanel(new GridBagLayout());
+        center.setOpaque(false);
+        JTextField campo = new JTextField(30);
+        String actual = getHistoriaNombreCampana();
+        campo.setText(actual);
+        campo.setBackground(new Color(20,20,20));
+        campo.setForeground(PIXEL_RED);
+        campo.setFont(new Font("Monospaced", Font.BOLD, 20));
+        campo.setBorder(javax.swing.BorderFactory.createCompoundBorder(
+                javax.swing.BorderFactory.createLineBorder(PIXEL_RED, 3),
+                javax.swing.BorderFactory.createLineBorder(PIXEL_BLACK, 2)
+        ));
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridx = 0; gbc.gridy = 0; gbc.insets = new Insets(10,10,10,10);
+        gbc.anchor = GridBagConstraints.CENTER;
+        center.add(campo, gbc);
+        container.add(center, BorderLayout.CENTER);
+
+        JPanel acciones = new JPanel();
+        acciones.setOpaque(false);
+        JButton aceptar = new JButton("Aceptar");
+        JButton cancelar = new JButton("Cancelar");
+        for (JButton b : new JButton[]{aceptar, cancelar}) {
+            b.setFont(new Font("Monospaced", Font.BOLD, 18));
+            b.setBackground(PIXEL_RED_DARK);
+            b.setForeground(Color.BLACK);
+            b.setFocusPainted(false);
+            b.setBorder(javax.swing.BorderFactory.createCompoundBorder(
+                    javax.swing.BorderFactory.createLineBorder(Color.BLACK, 4),
+                    javax.swing.BorderFactory.createLineBorder(PIXEL_RED, 3)
+            ));
+            acciones.add(b);
+        }
+        final Boolean[] acceptedFlag = new Boolean[]{null};
+        aceptar.addActionListener(e -> {
+            String nombre = campo.getText() != null ? campo.getText().trim() : "";
+            if (nombre.isBlank()) nombre = "Anónimo";
+            setHistoriaNombreCampana(nombre);
+            acceptedFlag[0] = Boolean.TRUE;
+            dialog.dispose();
+        });
+        cancelar.addActionListener(e -> {
+            acceptedFlag[0] = Boolean.FALSE;
+            dialog.dispose();
+        });
+        dialog.addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override public void windowClosing(java.awt.event.WindowEvent e) {
+                acceptedFlag[0] = Boolean.FALSE;
+            }
+        });
+        container.add(acciones, BorderLayout.SOUTH);
+        dialog.setContentPane(container);
+        dialog.setVisible(true);
+        return Boolean.TRUE.equals(acceptedFlag[0]);
+    }
+
+    // Opciones de J1 en Historia según progreso:
+    // Siempre "Mr. Increíble" + cada oponente de niveles ya superados.
+    public static String[] obtenerOpcionesJ1Historia() {
+        java.util.List<String> opciones = new java.util.ArrayList<>();
+        opciones.add("Mr. Increíble");
+        String[] oponentesPorNivel = new String[]{
+                "Batman",
+                "Iron Man",
+                "Ash",
+                "Naruto",
+                "Goku",
+                "Pyke",
+                "Luke Skywalker",
+                "Darth Vader"
+        };
+        int maxUnlock = Math.max(0, Math.min(historiaNivelActual, oponentesPorNivel.length));
+        for (int i = 0; i < maxUnlock; i++) {
+            opciones.add(oponentesPorNivel[i]);
+        }
+        return opciones.toArray(new String[0]);
     }
 
     private static void actualizarPreviewPersonaje(JLabel label, String personajeId, boolean flip) {

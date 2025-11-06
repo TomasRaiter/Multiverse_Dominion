@@ -576,6 +576,17 @@ public class Juego extends JPanel implements ActionListener {
                     boolean ganoJ1 = victoriasJ1 > victoriasJ2;
                     if (ganoJ1) {
                         if (nivelesHistoria != null && indiceNivel + 1 < nivelesHistoria.length) {
+                            // Aviso de desbloqueo de personaje al completar el nivel
+                            try {
+                                String unlocked = nombreDisplayDesdeId(nivelesHistoria[indiceNivel].oponenteId);
+                                mostrarAlertaHistoriaPixel(
+                                        "¡Nuevo personaje desbloqueado: " + unlocked + "!",
+                                        "Historia",
+                                        new String[]{"OK"},
+                                        "OK",
+                                        javax.swing.JOptionPane.INFORMATION_MESSAGE
+                                );
+                            } catch (Exception ignored) {}
                             // Ganó y hay siguiente nivel: preguntar
                             int opt = mostrarAlertaHistoriaPixel(
                                     "¡Nivel superado! ¿Qué deseas hacer?",
@@ -596,17 +607,44 @@ public class Juego extends JPanel implements ActionListener {
                                 Main.guardarProgresoHistoria();
                                 Main.mostrarMenuYArrancar(true);
                             } else {
+                                // Volver al menú inicial PERO conservar el progreso del nivel superado
+                                Main.setHistoriaNivelActual(indiceNivel + 1);
+                                Main.guardarProgresoHistoria();
                                 Main.mostrarPreMenu();
                             }
                             return;
                         } else {
-                            // Fin de la historia: cinemática final y opciones
+                            // Fin de la historia: cinemática final y pantalla negra con opciones
                             try {
                                 String[] textosFin = new String[]{
-                                        "Has dominado el multiverso.",
-                                        "Gracias por jugar."
+                                        "HAS LIBERADO EL MULTIVERSO.",
+                                        "GRACIAS POR JUGAR."
                                 };
                                 CinematicManager.mostrarCinematicasBlocking(textosFin);
+                                // Registrar tiempo de campaña y mostrar pantalla negra con opciones
+                                Main.finalizarCampaniaYRegistrarTiempo();
+                                int opt = mostrarPantallaFinalNegraHistoria();
+                                jugador1.stopAllAudio();
+                                jugador2.stopAllAudio();
+                                if (timer != null) {
+                                    try { timer.stop(); } catch (Exception ignore) {}
+                                }
+                                ventana.dispose();
+                                if (opt == 0) {
+                                    // Reiniciar campaña: vaciar nombre, resetear progreso y solicitar nombre antes de la intro
+                                    Main.setHistoriaNombreCampana("");
+                                    Main.setHistoriaNivelActual(0);
+                                    Main.guardarProgresoHistoria();
+                                    Main.reiniciarTemporizadorHistoria();
+                                    Main.mostrarIntroHistoria();
+                                } else {
+                                    // Menú principal tras finalizar: vaciar nombre y resetear progreso para que al entrar se solicite y arranque desde el inicio
+                                    Main.setHistoriaNombreCampana("");
+                                    Main.setHistoriaNivelActual(0);
+                                    Main.guardarProgresoHistoria();
+                                    Main.mostrarPreMenu();
+                                }
+                                return;
                             } catch (Exception ex) {
                                 System.err.println("[Historia] Error mostrando cinemática final: " + ex.getMessage());
                             }
@@ -1029,7 +1067,8 @@ public class Juego extends JPanel implements ActionListener {
                     j2Derrotado ? jugador2.getGameOverAudioLengthMicros() : 0L
                 );
                 int audioFrames = (int) Math.ceil(derrotadoMicros / 16000.0);
-                framesEsperaPostMatch = Math.max(audioFrames, 240);
+                // Limitar espera post-match para evitar bloqueos prolongados
+                framesEsperaPostMatch = Math.min(Math.max(audioFrames, 180), 300);
                 enEsperaPostMatch = true;
             } else {
                 // Fin de ronda sin terminar match
@@ -1050,7 +1089,8 @@ public class Juego extends JPanel implements ActionListener {
                     j2Derrotado ? jugador2.getGameOverAudioLengthMicros() : 0L
                 );
                 int audioFrames = (int) Math.ceil(derrotadoMicros / 16000.0);
-                framesEsperaPostRonda = Math.min(Math.max(audioFrames, 180), 600);
+                // Limitar espera post-ronda para una transición más ágil
+                framesEsperaPostRonda = Math.min(Math.max(audioFrames, 120), 240);
                 enEsperaPostRonda = true;
                 System.out.println("[Ronda] Derrota= " + (j1Derrotado ? "J1" : j2Derrotado ? "J2" : "Empate") +
                         ", framesEsperaPostRonda=" + framesEsperaPostRonda +
@@ -1116,6 +1156,61 @@ public class Juego extends JPanel implements ActionListener {
         return result[0] < 0 ? 0 : result[0];
     }
     
+    // Pantalla final negra con mensaje y opciones (bloqueante)
+    private int mostrarPantallaFinalNegraHistoria() {
+        javax.swing.JDialog dialog = new javax.swing.JDialog(ventana, true);
+        dialog.setUndecorated(true);
+        java.awt.Dimension screen = java.awt.Toolkit.getDefaultToolkit().getScreenSize();
+        dialog.setSize(screen.width, screen.height);
+        dialog.setLocationRelativeTo(null);
+
+        java.awt.Color PIXEL_RED = new java.awt.Color(170, 0, 0);
+        java.awt.Color PIXEL_RED_DARK = new java.awt.Color(120, 0, 0);
+
+        javax.swing.JPanel root = new javax.swing.JPanel(new java.awt.BorderLayout());
+        root.setBackground(java.awt.Color.BLACK);
+
+        javax.swing.JLabel titulo = new javax.swing.JLabel("has liberado el multiverso", javax.swing.SwingConstants.CENTER);
+        titulo.setForeground(java.awt.Color.WHITE);
+        titulo.setFont(new java.awt.Font("Courier New", java.awt.Font.BOLD, 42));
+        titulo.setBorder(javax.swing.BorderFactory.createEmptyBorder(120, 20, 40, 20));
+        root.add(titulo, java.awt.BorderLayout.CENTER);
+
+        javax.swing.JPanel botones = new javax.swing.JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.CENTER, 24, 24));
+        botones.setBackground(java.awt.Color.BLACK);
+
+        javax.swing.JButton bReiniciar = new javax.swing.JButton("Reiniciar campaña");
+        javax.swing.JButton bMenu = new javax.swing.JButton("Menú principal");
+        bReiniciar.setFont(new java.awt.Font("Courier New", java.awt.Font.BOLD, 20));
+        bMenu.setFont(new java.awt.Font("Courier New", java.awt.Font.BOLD, 20));
+        bReiniciar.setBackground(PIXEL_RED_DARK);
+        bMenu.setBackground(PIXEL_RED_DARK);
+        bReiniciar.setForeground(java.awt.Color.BLACK);
+        bMenu.setForeground(java.awt.Color.BLACK);
+        bReiniciar.setFocusPainted(false);
+        bMenu.setFocusPainted(false);
+        bReiniciar.setBorder(javax.swing.BorderFactory.createCompoundBorder(
+                javax.swing.BorderFactory.createLineBorder(java.awt.Color.BLACK, 4),
+                javax.swing.BorderFactory.createLineBorder(PIXEL_RED, 3)
+        ));
+        bMenu.setBorder(javax.swing.BorderFactory.createCompoundBorder(
+                javax.swing.BorderFactory.createLineBorder(java.awt.Color.BLACK, 4),
+                javax.swing.BorderFactory.createLineBorder(PIXEL_RED, 3)
+        ));
+        botones.add(bReiniciar);
+        botones.add(bMenu);
+        root.add(botones, java.awt.BorderLayout.SOUTH);
+
+        final int[] result = new int[]{1};
+        bReiniciar.addActionListener(e -> { result[0] = 0; dialog.dispose(); });
+        bMenu.addActionListener(e -> { result[0] = 1; dialog.dispose(); });
+        dialog.getRootPane().setDefaultButton(bReiniciar);
+
+        dialog.setContentPane(root);
+        dialog.setVisible(true);
+        return result[0];
+    }
+    
 
     private void reiniciarJuego() {
         // Reset jugadores
@@ -1133,7 +1228,7 @@ public class Juego extends JPanel implements ActionListener {
         enCuentaRegresiva = true;
         contadorRegresivo = 3;
         contadorFrames = 0;
-        segundosRestantes = 90;
+        segundosRestantes = obtenerSegundosIniciales();
         framesTimer = 0;
         cronometroAcumuladoNanos = 0L;
         tiempoAgotado = false;
@@ -1181,7 +1276,7 @@ public class Juego extends JPanel implements ActionListener {
         jugador2.resetParaNuevaRonda();
         // reset estados de ronda
         tiempoAgotado = false;
-        segundosRestantes = 90;
+        segundosRestantes = obtenerSegundosIniciales();
         framesTimer = 0;
         cronometroAcumuladoNanos = 0L;
         enCuentaRegresiva = true;
@@ -1198,6 +1293,18 @@ public class Juego extends JPanel implements ActionListener {
         // continuar loop
         if (!timer.isRunning()) timer.start();
         repaint();
+    }
+
+    // Conversión de id interno a nombre mostrable
+    private String nombreDisplayDesdeId(String id) {
+        if (id == null) return "-";
+        return switch (id) {
+            case "Mr_Increible" -> "Mr. Increíble";
+            case "Iron_Man" -> "Iron Man";
+            case "Luke_Skywalker" -> "Luke Skywalker";
+            case "Darth_Vader" -> "Darth Vader";
+            default -> id.replace('_', ' ');
+        };
     }
 
     // --- API de Modo Historia ---
@@ -1220,6 +1327,11 @@ public class Juego extends JPanel implements ActionListener {
         }
         System.out.println("[Historia] Activando Story Mode. indiceNivel=" + this.indiceNivel);
         try {
+            if (this.indiceNivel == 0) {
+                Main.iniciarTemporizadorHistoria();
+            }
+        } catch (Exception ignored) {}
+        try {
             aplicarNivelActual();
         } catch (Throwable t) {
             System.err.println("[Historia] Falló aplicar nivel actual: " + t.getMessage());
@@ -1230,7 +1342,7 @@ public class Juego extends JPanel implements ActionListener {
                 enCuentaRegresiva = true;
                 contadorRegresivo = 3;
                 contadorFrames = 0;
-                segundosRestantes = 90;
+                segundosRestantes = obtenerSegundosIniciales();
                 cronometroAcumuladoNanos = 0L;
                 tiempoAgotado = false;
                 mensajeVictoria = "";
@@ -1260,7 +1372,7 @@ public class Juego extends JPanel implements ActionListener {
             System.err.println("[Historia] No se pudo aplicar oponente: " + ex.getMessage());
         }
         // Vida máxima y reglas de jefe final
-        bossFinalActivo = lvl.esFinalBoss;
+        bossFinalActivo = lvl.esFinalBoss && !Main.MODO_TEST_BOSS_SUAVE;
         try { jugador1.setVidaMax(100); } catch (Exception ignored) {}
         try { jugador2.setVidaMax(bossFinalActivo ? 500 : 100); } catch (Exception ignored) {}
         jugador1.setVida(jugador1.getVidaMax());
@@ -1285,7 +1397,7 @@ public class Juego extends JPanel implements ActionListener {
         enCuentaRegresiva = true;
         contadorRegresivo = 3;
         contadorFrames = 0;
-        segundosRestantes = 90;
+        segundosRestantes = obtenerSegundosIniciales();
         framesTimer = 0;
         cronometroAcumuladoNanos = 0L;
         tiempoAgotado = false;
@@ -1300,6 +1412,18 @@ public class Juego extends JPanel implements ActionListener {
         } catch (Exception ignored) {}
         if (!timer.isRunning()) timer.start();
         repaint();
+    }
+
+    /**
+     * Determina los segundos iniciales por ronda en función del oponente.
+     * Para combates contra Darth Vader se usan 150s, caso contrario 90s.
+     */
+    private int obtenerSegundosIniciales() {
+        try {
+            String oppId = (jugador2 != null) ? jugador2.getPersonajeId() : null;
+            if ("Darth_Vader".equals(oppId)) return 150;
+        } catch (Exception ignored) {}
+        return 90;
     }
 
     private void mostrarMenuPausa() {
