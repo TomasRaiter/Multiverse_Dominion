@@ -24,22 +24,49 @@ public class AudioPlayer {
         throw new java.io.FileNotFoundException("Audio no encontrado: " + path);
     }
 
+    private static void openClipFromStream(javax.sound.sampled.Clip clip, javax.sound.sampled.AudioInputStream ais) throws Exception {
+        javax.sound.sampled.AudioFormat format = ais.getFormat();
+        // Evitar preasignación gigante: leer incrementalmente
+        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+        byte[] buf = new byte[8192];
+        int read;
+        while ((read = ais.read(buf)) != -1) {
+            baos.write(buf, 0, read);
+        }
+        byte[] audioBytes = baos.toByteArray();
+        clip.open(format, audioBytes, 0, audioBytes.length);
+    }
+
     public static synchronized javax.sound.sampled.Clip playOnce(String path) {
         try {
             javax.sound.sampled.AudioInputStream ais = loadStream(path);
             javax.sound.sampled.AudioFormat baseFormat = ais.getFormat();
-            javax.sound.sampled.AudioFormat decodedFormat = new javax.sound.sampled.AudioFormat(
-                    javax.sound.sampled.AudioFormat.Encoding.PCM_SIGNED,
-                    baseFormat.getSampleRate(), 16, baseFormat.getChannels(),
-                    baseFormat.getChannels() * 2, baseFormat.getSampleRate(), false);
-            javax.sound.sampled.AudioInputStream dais = javax.sound.sampled.AudioSystem.getAudioInputStream(decodedFormat, ais);
             javax.sound.sampled.Clip clip = javax.sound.sampled.AudioSystem.getClip();
-            clip.open(dais);
+            try {
+                // Si no es PCM, convertir a PCM firmado 16-bit
+                javax.sound.sampled.AudioInputStream dais;
+                boolean needsPcm16 = baseFormat.getEncoding() != javax.sound.sampled.AudioFormat.Encoding.PCM_SIGNED
+                        || baseFormat.getSampleSizeInBits() != 16;
+                if (needsPcm16) {
+                    javax.sound.sampled.AudioFormat decodedFormat = new javax.sound.sampled.AudioFormat(
+                            javax.sound.sampled.AudioFormat.Encoding.PCM_SIGNED,
+                            baseFormat.getSampleRate(), 16, baseFormat.getChannels(),
+                            baseFormat.getChannels() * 2, baseFormat.getSampleRate(), false);
+                    dais = javax.sound.sampled.AudioSystem.getAudioInputStream(decodedFormat, ais);
+                } else {
+                    dais = ais;
+                }
+                // Abrir leyendo todo el stream para evitar "Audio data < 0"
+                openClipFromStream(clip, dais);
+            } catch (Exception convEx) {
+                System.err.println("[AudioPlayer] Error abriendo clip (once): " + convEx.getMessage() + " BaseFormat=" + baseFormat);
+                throw convEx;
+            }
             clip.start();
             return clip;
         } catch (Exception e) {
             System.err.println("Error reproduciendo audio (once): " + path);
-            e.printStackTrace();
+            try { e.printStackTrace(); } catch (Exception ignored) {}
             return null;
         }
     }
@@ -48,18 +75,30 @@ public class AudioPlayer {
         try {
             javax.sound.sampled.AudioInputStream ais = loadStream(path);
             javax.sound.sampled.AudioFormat baseFormat = ais.getFormat();
-            javax.sound.sampled.AudioFormat decodedFormat = new javax.sound.sampled.AudioFormat(
-                    javax.sound.sampled.AudioFormat.Encoding.PCM_SIGNED,
-                    baseFormat.getSampleRate(), 16, baseFormat.getChannels(),
-                    baseFormat.getChannels() * 2, baseFormat.getSampleRate(), false);
-            javax.sound.sampled.AudioInputStream dais = javax.sound.sampled.AudioSystem.getAudioInputStream(decodedFormat, ais);
             javax.sound.sampled.Clip clip = javax.sound.sampled.AudioSystem.getClip();
-            clip.open(dais);
+            try {
+                javax.sound.sampled.AudioInputStream dais;
+                boolean needsPcm16 = baseFormat.getEncoding() != javax.sound.sampled.AudioFormat.Encoding.PCM_SIGNED
+                        || baseFormat.getSampleSizeInBits() != 16;
+                if (needsPcm16) {
+                    javax.sound.sampled.AudioFormat decodedFormat = new javax.sound.sampled.AudioFormat(
+                            javax.sound.sampled.AudioFormat.Encoding.PCM_SIGNED,
+                            baseFormat.getSampleRate(), 16, baseFormat.getChannels(),
+                            baseFormat.getChannels() * 2, baseFormat.getSampleRate(), false);
+                    dais = javax.sound.sampled.AudioSystem.getAudioInputStream(decodedFormat, ais);
+                } else {
+                    dais = ais;
+                }
+                openClipFromStream(clip, dais);
+            } catch (Exception convEx) {
+                System.err.println("[AudioPlayer] Error abriendo clip (loop): " + convEx.getMessage() + " BaseFormat=" + baseFormat);
+                throw convEx;
+            }
             clip.loop(javax.sound.sampled.Clip.LOOP_CONTINUOUSLY);
             return clip;
         } catch (Exception e) {
             System.err.println("Error reproduciendo audio (loop): " + path);
-            e.printStackTrace();
+            try { e.printStackTrace(); } catch (Exception ignored) {}
             return null;
         }
     }

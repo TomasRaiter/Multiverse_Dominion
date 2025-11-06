@@ -83,6 +83,7 @@ public class Juego extends JPanel implements ActionListener {
     private int pokemonVidaJ1 = 200;
     private boolean pokemonVolviendoJ1 = false;
     private int shrinkAlturaJ1 = 300; // altura visual para efecto de regreso a pokebola
+    private int esperaAudioPokemonKOJ1 = 0; // frames de espera para terminar audio de GameOver del Pokémon
     // Flujo de Jugador 2
     private boolean ashSaliendoJ2 = false;
     private int dirSalidaAshJ2 = 1; // J2 sale a la derecha
@@ -90,6 +91,7 @@ public class Juego extends JPanel implements ActionListener {
     private int pokemonVidaJ2 = 200;
     private boolean pokemonVolviendoJ2 = false;
     private int shrinkAlturaJ2 = 300;
+    private int esperaAudioPokemonKOJ2 = 0; // frames de espera para terminar audio de GameOver del Pokémon
 
     // --- Modo Historia ---
     private boolean storyMode = false;
@@ -317,6 +319,17 @@ public class Juego extends JPanel implements ActionListener {
         g.drawString(marcador, txScore, tyScore+1);
         g.drawString(marcador, txScore, tyScore);
         // Marcador ya dibujado dentro de la caja estilo timer
+
+        // Orientación dinámica: que se miren siempre
+        // Si J1 está a la derecha de J2, J1 mira a la izquierda (flip) y J2 a la derecha (no flip).
+        // Si J1 vuelve a estar a la izquierda, invertimos de nuevo.
+        try {
+            int centroJ1 = jugador1.getX() + Math.max(10, jugador1.getBounds().width) / 2;
+            int centroJ2 = jugador2.getX() + Math.max(10, jugador2.getBounds().width) / 2;
+            boolean j1MasDerecha = centroJ1 > centroJ2;
+            jugador1.setFlipHorizontal(j1MasDerecha);
+            jugador2.setFlipHorizontal(!j1MasDerecha);
+        } catch (Exception ignored) {}
 
         // Dibujar jugadores (pasar el panel como observer para animar GIFs)
         jugador1.dibujar(g, this, scaleX, scaleY);
@@ -716,7 +729,8 @@ public class Juego extends JPanel implements ActionListener {
                     jugador1.stopAllAudio();
                     jugador2.stopAllAudio();
                     ventana.dispose();
-                    Main.mostrarPreMenu();
+                    // Redirigir al menú de selección Versus directamente
+                    Main.mostrarMenuYArrancar(false);
                 });
                 this.add(botonCambiar);
                 botonCambiar.setVisible(true);
@@ -829,7 +843,8 @@ public class Juego extends JPanel implements ActionListener {
                 boolean selMuerto = (seleccionIndexJ1==0 && muertoC) || (seleccionIndexJ1==1 && muertoG) || (seleccionIndexJ1==2 && muertoP);
                 if (!selMuerto) {
                     seleccionActivaJ1 = false;
-                    jugador1.onGameOver();
+                    // Mostrar derrota de Ash sin audio para animar su salida
+                    jugador1.onGameOver(false);
                     // permitir salida fuera de límites
                     jugador1.setIgnorarLimitesHorizontales(true);
                     ashSaliendoJ1 = true; dirSalidaAshJ1 = -1;
@@ -858,7 +873,8 @@ public class Juego extends JPanel implements ActionListener {
                 boolean selMuerto2 = (seleccionIndexJ2==0 && muertoC) || (seleccionIndexJ2==1 && muertoG) || (seleccionIndexJ2==2 && muertoP);
                 if (!selMuerto2) {
                     seleccionActivaJ2 = false;
-                    jugador2.onGameOver();
+                    // Mostrar derrota de Ash sin audio para animar su salida
+                    jugador2.onGameOver(false);
                     jugador2.setIgnorarLimitesHorizontales(true);
                     ashSaliendoJ2 = true; dirSalidaAshJ2 = 1;
                 }
@@ -875,6 +891,8 @@ public class Juego extends JPanel implements ActionListener {
                 pokemonActivoJ1 = true;
                 pokemonVidaJ1 = 200;
                 jugador1.resetParaNuevaRonda();
+                // Reproducir el audio de comienzo del Pokémon invocado
+                jugador1.onCountdownStart();
             }
         }
         if (ashSaliendoJ2) {
@@ -887,6 +905,8 @@ public class Juego extends JPanel implements ActionListener {
                 pokemonActivoJ2 = true;
                 pokemonVidaJ2 = 200;
                 jugador2.resetParaNuevaRonda();
+                // Reproducir el audio de comienzo del Pokémon invocado
+                jugador2.onCountdownStart();
             }
         }
 
@@ -963,7 +983,7 @@ public class Juego extends JPanel implements ActionListener {
         }
         // KO del pokémon J1 y regreso a Ash sin terminar ronda
         if (pokemonActivoJ1 && pokemonVidaJ1 <= 0 && !pokemonVolviendoJ1) {
-            jugador1.onGameOver();
+            jugador1.onGameOver(true);
             // Marcar al seleccionado como muerto para el menú
             if ("Charizard".equals(seleccionPokemonJ1)) muertoC = true;
             else if ("Greninja".equals(seleccionPokemonJ1)) muertoG = true;
@@ -974,13 +994,19 @@ public class Juego extends JPanel implements ActionListener {
             jugador1.setIgnorarLimitesHorizontales(true);
             shrinkAlturaJ1 = 300;
             jugador1.setAlturaVisualOverride(shrinkAlturaJ1);
+            // Calcular espera según duración del audio de GameOver del Pokémon
+            try {
+                int audioFramesKO = (int) Math.ceil(jugador1.getGameOverAudioLengthMicros() / 16000.0);
+                esperaAudioPokemonKOJ1 = Math.min(Math.max(audioFramesKO, 90), 240);
+            } catch (Exception ignored) { esperaAudioPokemonKOJ1 = 120; }
         }
         if (pokemonVolviendoJ1) {
             jugador1.setX(jugador1.getX() + dirSalidaAshJ1 * 8);
             // reducir altura visual progresivamente simulando regreso a pokebola
             shrinkAlturaJ1 = Math.max(0, shrinkAlturaJ1 - 6);
             jugador1.setAlturaVisualOverride(shrinkAlturaJ1);
-            if (jugador1.getX() < -200) {
+            if (esperaAudioPokemonKOJ1 > 0) esperaAudioPokemonKOJ1--;
+            if (jugador1.getX() < -200 && esperaAudioPokemonKOJ1 <= 0) {
                 pokemonVolviendoJ1 = false;
                 pokemonActivoJ1 = false;
                 aplicarPersonaje(jugador1, "Ash");
@@ -996,7 +1022,7 @@ public class Juego extends JPanel implements ActionListener {
 
         // KO del pokémon J2 y regreso a Ash sin terminar ronda
         if (pokemonActivoJ2 && pokemonVidaJ2 <= 0 && !pokemonVolviendoJ2) {
-            jugador2.onGameOver();
+            jugador2.onGameOver(true);
             if ("Charizard".equals(seleccionPokemonJ2)) muertoC = true;
             else if ("Greninja".equals(seleccionPokemonJ2)) muertoG = true;
             else if ("Pikachu".equals(seleccionPokemonJ2)) muertoP = true;
@@ -1005,12 +1031,17 @@ public class Juego extends JPanel implements ActionListener {
             jugador2.setIgnorarLimitesHorizontales(true);
             shrinkAlturaJ2 = 300;
             jugador2.setAlturaVisualOverride(shrinkAlturaJ2);
+            try {
+                int audioFramesKO2 = (int) Math.ceil(jugador2.getGameOverAudioLengthMicros() / 16000.0);
+                esperaAudioPokemonKOJ2 = Math.min(Math.max(audioFramesKO2, 90), 240);
+            } catch (Exception ignored) { esperaAudioPokemonKOJ2 = 120; }
         }
         if (pokemonVolviendoJ2) {
             jugador2.setX(jugador2.getX() + dirSalidaAshJ2 * 8);
             shrinkAlturaJ2 = Math.max(0, shrinkAlturaJ2 - 6);
             jugador2.setAlturaVisualOverride(shrinkAlturaJ2);
-            if (jugador2.getX() > baseWidth + 200 - jugador2.getBounds().width) {
+            if (esperaAudioPokemonKOJ2 > 0) esperaAudioPokemonKOJ2--;
+            if (jugador2.getX() > baseWidth + 200 - jugador2.getBounds().width && esperaAudioPokemonKOJ2 <= 0) {
                 pokemonVolviendoJ2 = false;
                 pokemonActivoJ2 = false;
                 aplicarPersonaje(jugador2, "Ash");
@@ -1541,6 +1572,21 @@ public class Juego extends JPanel implements ActionListener {
                 "- Saltar: Flecha Arriba\n" +
                 "- Agacharse: Flecha Abajo\n" +
                 "- Atacar: Enter";
+
+        // Controles especiales de Ash (selección de Pokémon) si está en combate
+        boolean ashEnCombate =
+                (jugador1 != null && "Ash".equals(jugador1.getPersonajeId())) ||
+                (jugador2 != null && "Ash".equals(jugador2.getPersonajeId()));
+        if (ashEnCombate) {
+            controles += "\n\nAsh (Selección de Pokémon):\n" +
+                    "- J1: Abrir selección: F\n" +
+                    "- J1: Navegar selección: A/D\n" +
+                    "- J1: Confirmar selección: R\n" +
+                    "- J1: Cancelar selección: E\n" +
+                    "- J2: Abrir selección: L\n" +
+                    "- J2: Navegar selección: Flecha Izquierda/Derecha\n" +
+                    "- J2: Confirmar selección: Enter";
+        }
         JOptionPane.showMessageDialog(ventana, controles, "Controles", JOptionPane.INFORMATION_MESSAGE);
     }
 
@@ -1629,12 +1675,16 @@ public class Juego extends JPanel implements ActionListener {
                 hurtPath = images + "ash_daño.png";
                 koPath = images + "ash_gameOver.gif";
                 jumpPath = images + "ash_agachar_saltar.png";
-                // Sin audios dedicados por ahora
+                // Audios estandarizados
                 derrotaFrames = 90;
+                // Comienzo y GameOver dedicados
+                inicio = sounds + "Ash_Comienzo.wav";
+                gameover = sounds + "Ash_GameOver.wav";
                 audioAtaque = null; audioSalto = null;
             }
             case "Charizard" -> {
                 images = "Pokemon/Charizard/";
+                sounds = "Pokemon/Charizard/sounds/";
                 idlePath = images + "charizard_idle_caminar.gif";
                 walkPath = images + "charizard_idle_caminar.gif";
                 crouchPath = images + "charizard.png"; // reutilizamos
@@ -1643,10 +1693,14 @@ public class Juego extends JPanel implements ActionListener {
                 koPath = null; // no disponible
                 jumpPath = images + "charizard.png";
                 derrotaFrames = 90;
+                // Comienzo y GameOver dedicados
+                inicio = sounds + "Charizard_Comienzo.wav";
+                gameover = sounds + "Charizard_GameOver.wav";
                 audioAtaque = null; audioSalto = null;
             }
             case "Greninja" -> {
                 images = "Pokemon/Greninja/";
+                sounds = "Pokemon/Greninja/sounds/";
                 idlePath = images + "greninja_idle.png";
                 walkPath = images + "greninja_caminar.gif";
                 crouchPath = images + "greninja_idle.png";
@@ -1655,18 +1709,25 @@ public class Juego extends JPanel implements ActionListener {
                 koPath = null;
                 jumpPath = images + "greninja_idle.png";
                 derrotaFrames = 90;
+                // Comienzo y GameOver dedicados
+                inicio = sounds + "Greninja_Comienzo.wav";
+                gameover = sounds + "Greninja_GameOver.wav";
                 audioAtaque = null; audioSalto = null;
             }
             case "Pikachu" -> {
-                images = "Pokemon/Pikachu/";
+                images = "Pokemon/Pikachu/images/";
+                sounds = "Pokemon/Pikachu/sounds/";
                 idlePath = images + "pikachu_idle.png";
                 walkPath = images + "pikachu_caminando.gif";
                 crouchPath = images + "pikachu_idle.png";
-                attackPath = images + "pikachu_atacando.gif";
+                attackPath = images + "pikachu_atacando.png";
                 hurtPath = images + "pikachu_daño.png";
                 koPath = null;
                 jumpPath = images + "pikachu_idle.png";
                 derrotaFrames = 90;
+                // Audios de comienzo y gameover dedicados
+                inicio = sounds + "Pikachu_Comienzo.wav";
+                gameover = sounds + "Pikachu_GameOver.wav";
                 audioAtaque = null; audioSalto = null;
             }
             case "Darth_Vader" -> {
@@ -1747,7 +1808,8 @@ public class Juego extends JPanel implements ActionListener {
                 idlePath = images + "goku_idle.png";
                 walkPath = images + "goku_caminar.gif";
                 crouchPath = images + "goku_agachar.png";
-                attackPath = images + "goku_ataque.gif";
+                // Ajuste: el archivo real es goku_atacar.gif
+                attackPath = images + "goku_atacar.gif";
                 hurtPath = images + "goku_daño.png";
                 koPath = images + "goku_gameOver.gif";
                 jumpPath = images + "goku_saltar.png";
@@ -1762,7 +1824,7 @@ public class Juego extends JPanel implements ActionListener {
             }
             case "Batman" -> {
                 images = "Batman/";
-                sounds = null; // no hay carpeta sounds para Batman
+                sounds = "Batman/sounds/"; // carpeta de sonidos estandarizada
                 // El archivo real es "batma.idle.png" en recursos
                 idlePath = images + "batma.idle.png";
                 walkPath = images + "batman_caminar.gif";
@@ -1771,13 +1833,17 @@ public class Juego extends JPanel implements ActionListener {
                 hurtPath = images + "batman_daño.png";
                 koPath = images + "batman_gameOver.gif";
                 jumpPath = images + "batman_saltar.png";
-                inicio = null; resp = null; dano = null; gameover = null; saltoAtaque = null;
+                // Audios de comienzo y gameover dedicados
+                inicio = sounds + "Batman_Comienzo.wav"; 
+                resp = null; 
+                gameover = sounds + "Batman_GameOver.wav"; 
+                saltoAtaque = null;
                 audioAtaque = null; audioSalto = null;
                 derrotaFrames = 90;
             }
             case "Luke_Skywalker" -> {
                 images = "Luke Skywalker/";
-                sounds = null; // sin audios específicos
+                sounds = "Luke Skywalker/sounds/"; // carpeta de sonidos estandarizada
                 idlePath = images + "luke_idle.png";
                 walkPath = images + "luke_caminar.gif";
                 crouchPath = images + "luke_agachar_saltar.png";
@@ -1785,13 +1851,17 @@ public class Juego extends JPanel implements ActionListener {
                 hurtPath = images + "luke_daño.png";
                 koPath = images + "luke_gameOver.gif";
                 jumpPath = images + "luke_agachar_saltar.png";
-                inicio = null; resp = null; dano = null; gameover = null; saltoAtaque = null;
+                // Audios de comienzo y gameover dedicados
+                inicio = sounds + "Luke_Comienzo.wav"; 
+                resp = null; 
+                gameover = sounds + "Luke_GameOver.wav"; 
+                saltoAtaque = null;
                 audioAtaque = null; audioSalto = null;
                 derrotaFrames = 90;
             }
             case "Naruto" -> {
                 images = "Naruto/";
-                sounds = null; // sin audios dedicados
+                sounds = "Naruto/sounds/"; // carpeta de sonidos disponible
                 idlePath = images + "naruto_idle.png";
                 walkPath = images + "naruto_caminar.gif";
                 crouchPath = images + "naruto_agachar.png";
@@ -1799,10 +1869,28 @@ public class Juego extends JPanel implements ActionListener {
                 hurtPath = images + "naruto_daño.png";
                 koPath = images + "naruto_gameOver.gif";
                 jumpPath = images + "naruto_saltar.png";
-                inicio = null; resp = null; dano = null; gameover = null; saltoAtaque = null;
+                // Audios de comienzo y gameover dedicados
+                inicio = sounds + "Naruto_Comienzo.wav";
+                resp = null;
+                dano = null; 
+                gameover = sounds + "Naruto_GameOver.wav"; 
+                saltoAtaque = null;
                 audioAtaque = null; audioSalto = null;
                 derrotaFrames = 90;
             }
+        }
+
+        // Asignación estandarizada de audios de ataque y daño
+        // Todas las carpetas de sonidos usan los mismos nombres: "Golpe.wav" y "Daño.wav"
+        if (sounds != null) {
+            try {
+                dano = sounds + "Daño.wav";
+                audioAtaque = sounds + "Golpe.wav";
+                // Desactivar antiguos alias de salto/ataque si existían
+                saltoAtaque = null;
+                // Si no tenemos audio de salto estándar, mantener null
+                audioSalto = null;
+            } catch (Exception ignored) {}
         }
         // Debug: log de rutas y carga
         System.out.println("[DEBUG] Cargando personaje: " + personajeId);

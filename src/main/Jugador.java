@@ -45,6 +45,8 @@ public class Jugador {
     private String personajeId;
     private boolean alternarAtaques = false;
     private boolean usarAttackAltNext = false;
+    // Control de orientación horizontal (flip)
+    private boolean flipHorizontal = false;
     // Control especial de límites y escala visual
     private boolean ignorarLimitesHorizontales = false;
     private int alturaVisualOverride = -1; // si >0, usar en dibujar en lugar de 300
@@ -278,6 +280,9 @@ public class Jugador {
     public void setX(int x) { this.x = x; }
     public void setY(int y) { this.y = y; }
     public int getX() { return this.x; }
+    // Orientación
+    public void setFlipHorizontal(boolean flip) { this.flipHorizontal = flip; }
+    public boolean isFlipHorizontal() { return this.flipHorizontal; }
     public int getY() { return this.y; }
 
     private boolean haSonadoAudioComienzo = false;
@@ -291,8 +296,15 @@ public class Jugador {
         if (audioComienzo != null && !haSonadoAudioComienzo) {
             System.out.println("[DEBUG] " + personajeId + " reproduciendo audio comienzo: " + audioComienzo);
             // Reproducir de forma no bloqueante para no congelar el EDT
-            AudioPlayer.playOnceAsync(audioComienzo, c -> clipInicio = c);
-            haSonadoAudioComienzo = true; // Marcar que ya sonó
+            // Marcar como sonado SOLO si el clip se cargó correctamente
+            AudioPlayer.playOnceAsync(audioComienzo, c -> {
+                clipInicio = c;
+                if (c != null) {
+                    haSonadoAudioComienzo = true;
+                } else {
+                    System.err.println("[DEBUG] " + personajeId + " fallo al cargar audio de comienzo: " + audioComienzo);
+                }
+            });
         } else if (haSonadoAudioComienzo) {
             System.out.println("[DEBUG] " + personajeId + " ya reprodujo su audio de comienzo.");
         } else {
@@ -322,8 +334,10 @@ public class Jugador {
         if (!agachado && !atacando && spriteIdle != null) spriteActual = spriteIdle;
     }
 
-    public void onGameOver() {
-        // Parar respiración y mostrar Game_Over + audio
+    public void onGameOver() { onGameOver(true); }
+
+    public void onGameOver(boolean reproducirAudio) {
+        // Parar respiración y mostrar Game_Over
         AudioPlayer.stop(clipRespiracion);
         if (spriteKO != null) {
             spriteActual = spriteKO;
@@ -332,13 +346,13 @@ public class Jugador {
         } else if (spriteIdle != null) {
             spriteActual = spriteIdle;
         }
-        // Reproducir audio de Game Over de forma no bloqueante para no congelar el EDT
-        if (audioGameOver != null) AudioPlayer.playOnceAsync(audioGameOver, c -> clipGameOver = c);
-        
+        // Reproducir audio de Game Over solo si corresponde
+        if (reproducirAudio && audioGameOver != null) {
+            AudioPlayer.playOnceAsync(audioGameOver, c -> clipGameOver = c);
+        }
         // Iniciar animación de derrota controlada
         enAnimacionDerrota = true;
         framesAnimacionDerrota = 0;
-        
         congelar();
     }
 
@@ -367,18 +381,18 @@ public class Jugador {
 
     public void dibujar(Graphics g, java.awt.Component observer, float scaleX, float scaleY) {
         int drawX = (int) (x * scaleX);
-        
-        
-        // POSICIÓN VERTICAL FIJA - TODOS LOS PERSONAJES EN EL MISMO NIVEL DEL SUELO
-        int sueloY = (int) (500 * scaleY);
-        int drawY = sueloY; // Base en el suelo para todos
-        
-        
-        // ALTURA VISUAL CONSISTENTE - MISMA ESCALA PARA TODOS LOS ESTADOS
+
+        // POSICIÓN VERTICAL: usar la posición real del jugador (y) para permitir salto/caída
+        int drawY = (int) ((y) * scaleY);
+
+        // ALTURA VISUAL CONSISTENTE - permite override por personaje/estado
         int alturaBase = 300; // Altura base fija para normalización
         int alturaVisualNormalizada = (int) (alturaBase * scaleY);
-        
-        int ajusteSuelo = 0;
+        if (alturaVisualOverride > 0) {
+            alturaVisualNormalizada = (int) (alturaVisualOverride * scaleY);
+        }
+
+        int ajusteSueloLocal = 0;
 
         Sprite s = spriteActual;
         javax.swing.ImageIcon icon = (s != null) ? s.getIcon() : null;
@@ -412,39 +426,41 @@ public class Jugador {
             // Personalización Darth Vader
             if (s == spriteIdle) escala *= 0.98;
             else if (s == spriteWalk) escala *= 1;
-            ajusteSuelo = 5; // 5px más abajo del suelo pene
+            ajusteSueloLocal = 5; // 5px más abajo del suelo
         } 
         else if ("Ash".equals(personajeId)) {
             // Personalización Ash
             if (s == spriteIdle) escala *= 0.90;
             else if (s == spriteWalk) escala *= 0.90;
             else if (s == spriteAttack) escala *= 0.95;
-            ajusteSuelo = -10; // 10px más arriba del suelo
+            ajusteSueloLocal = -10; // 10px más arriba del suelo
         }
         else if ("Iron_Man".equals(personajeId)) {
             // Personalización Iron Man
             if (s == spriteIdle) escala *= 1.05;
             else if (s == spriteWalk) escala *= 1.02;
-            ajusteSuelo = -5; // 5px más arriba del suelo
+            ajusteSueloLocal = -5; // 5px más arriba del suelo
         }
         else if ("Goku".equals(personajeId)) {
             // Personalización Goku
             if (s == spriteIdle) escala *= 0.95;
             else if (s == spriteWalk) escala *= 0.98;
-            ajusteSuelo = 0; // En el suelo normal
+            ajusteSueloLocal = 0; // En el suelo normal
         }
         else if ("Mr_Increible".equals(personajeId)) {
             // Personalización Mr Increíble
             if (s == spriteIdle) escala *= 1.1;
             else if (s == spriteWalk) escala *= 1.08;
             else if (s == spriteCrouch) escala *= 0.85;
-            ajusteSuelo = 8; // 8px más abajo del suelo
+            // Alinear pies con Darth Vader: compensar padding inferior del sprite
+            // Ajuste empírico para igualar línea de pies
+            ajusteSueloLocal = 18;
         }
         else if ("Batman".equals(personajeId)) {
             // Personalización Batman
             if (s == spriteIdle) escala *= 1.0;
             else if (s == spriteWalk) escala *= 1.0;
-            ajusteSuelo = -3; // 3px más arriba del suelo
+            ajusteSueloLocal = -3; // 3px más arriba del suelo
         }
 
         int anchoNormalizado = (int) (iconW * escala);
@@ -481,12 +497,15 @@ public class Jugador {
             }
 
             java.awt.Graphics2D g2 = (java.awt.Graphics2D) g.create();
-            boolean flip = "J2".equals(nombre);
+            boolean flip = this.flipHorizontal;
+            // Aplicar ajuste de suelo (offset vertical por personaje/estado)
+            int drawYConAjuste = drawY + (int) (ajusteSueloLocal * scaleY);
+
             if (flip) {
-                g2.translate(drawX + anchoNormalizado, drawY - alturaVisualNormalizada);
+                g2.translate(drawX + anchoNormalizado, drawYConAjuste - alturaVisualNormalizada);
                 g2.scale(-1, 1);
             } else {
-                g2.translate(drawX, drawY - alturaVisualNormalizada);
+                g2.translate(drawX, drawYConAjuste - alturaVisualNormalizada);
             }
 
             g2.scale(escala, escala);
@@ -501,7 +520,7 @@ public class Jugador {
             double escalaImg = (double) alturaVisualNormalizada / imgH;
             int anchoNormalizadoImg = (int) ((imgW > 0 ? imgW : alturaVisualNormalizada) * escalaImg);
 
-            if ("J2".equals(nombre)) {
+            if (this.flipHorizontal) {
                 g.drawImage(img, drawX + anchoNormalizadoImg, drawY - alturaVisualNormalizada, 
                            -anchoNormalizadoImg, alturaVisualNormalizada, observer);
             } else {
@@ -513,7 +532,7 @@ public class Jugador {
             int drawW = (int) (width * scaleX);
             int drawH = (int) (alturaActual * scaleY);
             g.setColor(color);
-            if ("J2".equals(nombre)) {
+            if (this.flipHorizontal) {
                 g.fillRect(drawX - drawW, drawY - drawH, drawW, drawH);
             } else {
                 g.fillRect(drawX, drawY - drawH, drawW, drawH);

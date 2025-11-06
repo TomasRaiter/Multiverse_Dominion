@@ -64,7 +64,7 @@ public class Main {
 
         JButton btnHistoria = new JButton("Historia");
         JButton btnTop3 = new JButton("Top 3");
-        JButton btnPvP = new JButton("PvP");
+        JButton btnPvP = new JButton("Versus");
         JButton btnSalir = new JButton("Salir");
         for (JButton b : new JButton[]{btnHistoria, btnTop3, btnPvP, btnSalir}) {
             b.setFont(new Font("Monospaced", Font.BOLD, 24));
