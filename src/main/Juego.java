@@ -74,12 +74,12 @@ public class Juego extends JPanel implements ActionListener {
     private int seleccionIndexJ2 = 0;
     private String seleccionPokemonJ2 = null;
     
-    // Estado de Pokémon derrotados (Charizard, Greninja, Pikachu)
+    // estado de pokemon derrotados (charizard, greninja, pikachu)
     private boolean muertoC = false;
     private boolean muertoG = false;
     private boolean muertoP = false;
     
-    // Sistema de mecánicas de Ash y Pokémon para Jugador 1
+    // sistema de mecanicas de ash y pokemon para jugador 1
     private boolean ashSaliendoJ1 = false;
     private int dirSalidaAshJ1 = -1;
     private boolean pokemonActivoJ1 = false;
@@ -89,7 +89,7 @@ public class Juego extends JPanel implements ActionListener {
     private int esperaAudioPokemonKOJ1 = 0;
     private boolean ashRegresandoJ1 = false;
     
-    // Sistema de mecánicas de Ash y Pokémon para Jugador 2
+    // sistema de mecanicas de ash y pokemon para jugador 2
     private boolean ashSaliendoJ2 = false;
     private int dirSalidaAshJ2 = 1;
     private boolean pokemonActivoJ2 = false;
@@ -203,7 +203,7 @@ public class Juego extends JPanel implements ActionListener {
             g.fillRect(0, 0, getWidth(), getHeight());
         }
 
-        // Dibujar suelo de combate
+        // dibujar suelo de combate
         int sueloY = (int) (500 * scaleY);
         int sueloH = (int) (100 * scaleY);
         Color GRAY_MID = new Color(90,90,90);
@@ -213,7 +213,7 @@ public class Juego extends JPanel implements ActionListener {
         g.fillRect(0, sueloY - 2, getWidth(), 2);
         g.fillRect(0, sueloY - 5, getWidth(), 2);
 
-        // Verificar que los jugadores estén inicializados
+        // verificar que los jugadores esten inicializados
         if (jugador1 == null || jugador2 == null) {
             g.setColor(PIXEL_RED);
             int fontInit = Math.max(12, (int) (20 * scaleY));
@@ -222,7 +222,7 @@ public class Juego extends JPanel implements ActionListener {
             return;
         }
 
-        // Dibujar barras de vida de los jugadores
+        // dibujar barras de vida de los jugadores
         int margin = (int) (20 * scaleX);
         int barW = (int) (300 * scaleX);
         int barH = (int) (20 * scaleY);
@@ -240,7 +240,7 @@ public class Juego extends JPanel implements ActionListener {
         g.setColor(PIXEL_RED);
         g.fillRect(j1BarX, barY, j1Len, barH);
         g.fillRect(j2BarX, barY, j2Len, barH);
-        // Dibujar barras de vida de Pokémon activos
+        // dibujar barras de vida de pokemon activos
         if (pokemonActivoJ1) {
             int sep = Math.max(4, (int)(6 * scaleY));
             int barH2 = Math.max(6, (int)(10 * scaleY));
@@ -262,6 +262,7 @@ public class Juego extends JPanel implements ActionListener {
             g.fillRect(j2BarX, barY2, pLen2, barH2);
         }
         
+        // dibujar caja del temporizador
         int boxWTop = Math.max(70, (int)(90 * scaleX));
         int boxHTop = Math.max(30, (int)(40 * scaleY));
         int cxTop = (getWidth() - boxWTop) / 2;
@@ -287,6 +288,7 @@ public class Juego extends JPanel implements ActionListener {
         g.drawString(timerText, txTop, tyTop+1);
         g.drawString(timerText, txTop, tyTop);
         
+        // dibujar marcador de victorias
         String etiquetaJ2 = storyMode ? "Oponente" : "J2";
         String marcador = "J1 " + victoriasJ1 + " - " + etiquetaJ2 + " " + victoriasJ2;
         g.setFont(new Font("Monospaced", Font.BOLD, Math.max(12, (int)(18 * scaleY))));
@@ -312,6 +314,7 @@ public class Juego extends JPanel implements ActionListener {
         g.drawString(marcador, txScore, tyScore+1);
         g.drawString(marcador, txScore, tyScore);
 
+        // configurar direccion de los sprites segun posicion
         try {
             int centroJ1 = jugador1.getX() + Math.max(10, jugador1.getBounds().width) / 2;
             int centroJ2 = jugador2.getX() + Math.max(10, jugador2.getBounds().width) / 2;
@@ -320,9 +323,11 @@ public class Juego extends JPanel implements ActionListener {
             jugador2.setFlipHorizontal(!j1MasDerecha);
         } catch (Exception ignored) {}
 
+        // dibujar jugadores
         jugador1.dibujar(g, this, scaleX, scaleY);
         jugador2.dibujar(g, this, scaleX, scaleY);
 
+        // dibujar interfaz de seleccion de pokemon para jugador 1
         if (seleccionActivaJ1) {
             g.setColor(new Color(0,0,0,150));
             g.fillRect(0, 0, getWidth(), getHeight());
@@ -393,6 +398,7 @@ public class Juego extends JPanel implements ActionListener {
             g.drawString(help, hx, Math.min(hy, getHeight() - 10));
         }
 
+        // dibujar interfaz de seleccion de pokemon para jugador 2
         if (seleccionActivaJ2) {
             g.setColor(new Color(0,0,0,150));
             g.fillRect(0, 0, getWidth(), getHeight());
@@ -464,6 +470,7 @@ public class Juego extends JPanel implements ActionListener {
             g.drawString(help2, hx2, Math.min(hy2, getHeight() - 10));
         }
 
+        // dibujar mensaje de victoria si el juego termino
         if (juegoTerminado) {
             int fontSize2 = Math.max(18, (int) (50 * scaleY));
             g.setFont(new Font("Monospaced", Font.BOLD, fontSize2));
@@ -488,6 +495,7 @@ public class Juego extends JPanel implements ActionListener {
     @Override
     public void actionPerformed(ActionEvent e) {
         try {
+        // manejar pausa con tecla esc
         if (input.esc && !escPrev) {
             enPausa = !enPausa;
             if (enPausa) {
@@ -496,7 +504,7 @@ public class Juego extends JPanel implements ActionListener {
         }
         escPrev = input.esc;
 
-        // Reinicializar IA si es necesario en modo historia
+        // reinicializar ia si es necesario en modo historia
         if (storyMode && botIA == null) {
             try {
                 botIA = new BotIA();
@@ -518,7 +526,7 @@ public class Juego extends JPanel implements ActionListener {
             }
         }
 
-        // Manejar mecánicas del jefe final (invulnerabilidad cíclica)
+        // manejar mecanicas del jefe final (invulnerabilidad ciclica)
         if (storyMode && bossFinalActivo && !enCuentaRegresiva && !tiempoAgotado && !juegoTerminado) {
             if (bossInvulFrames > 0) {
                 bossInvulFrames--;
@@ -531,7 +539,7 @@ public class Juego extends JPanel implements ActionListener {
             }
         }
 
-        // Manejar espera después de cada ronda
+        // manejar espera despues de cada ronda
         if (enEsperaPostRonda) {
             jugador1.congelar();
             jugador2.congelar();
@@ -549,7 +557,7 @@ public class Juego extends JPanel implements ActionListener {
             }
         }
 
-        // Manejar espera después del match completo
+        // manejar espera despues del match completo
         if (enEsperaPostMatch) {
             jugador1.congelar();
             jugador2.congelar();
@@ -793,6 +801,7 @@ public class Juego extends JPanel implements ActionListener {
             }
         } else {
 
+            // manejar apertura de seleccion de pokemon para jugador 1
             if (input.fPulse && "Ash".equals(jugador1.getPersonajeId()) && !seleccionActivaJ1 && !ashSaliendoJ1 && !pokemonActivoJ1) {
                 seleccionActivaJ1 = true;
                 seleccionIndexJ1 = 0;
@@ -800,6 +809,7 @@ public class Juego extends JPanel implements ActionListener {
                 input.fPulse = false;
             }
 
+            // manejar apertura de seleccion de pokemon para jugador 2
             if (input.lPulse && "Ash".equals(jugador2.getPersonajeId()) && !seleccionActivaJ2 && !ashSaliendoJ2 && !pokemonActivoJ2) {
                 seleccionActivaJ2 = true;
                 seleccionIndexJ2 = 0;
@@ -807,6 +817,7 @@ public class Juego extends JPanel implements ActionListener {
                 input.lPulse = false;
             }
 
+        // manejar navegacion en seleccion de pokemon para jugador 1
         if (seleccionActivaJ1) {
             jugador1.congelar();
             jugador2.congelar();
@@ -824,12 +835,14 @@ public class Juego extends JPanel implements ActionListener {
                 input.navDerPulse = false;
             }
 
+            // cancelar seleccion
             if (input.ePulse) {
                 seleccionActivaJ1 = false;
                 seleccionPokemonJ1 = null;
                 input.ePulse = false;
             }
             seleccionPokemonJ1 = seleccionIndexJ1 == 0 ? "Charizard" : (seleccionIndexJ1 == 1 ? "Greninja" : "Pikachu");
+            // confirmar seleccion
             if (input.ataque1Pulse) {
                 input.ataque1Pulse = false;
 
@@ -844,6 +857,7 @@ public class Juego extends JPanel implements ActionListener {
                 }
             }
         }
+        // manejar navegacion en seleccion de pokemon para jugador 2
         if (seleccionActivaJ2) {
             jugador1.congelar();
             jugador2.congelar();
@@ -861,6 +875,7 @@ public class Juego extends JPanel implements ActionListener {
                 input.navDer2Pulse = false;
             }
             seleccionPokemonJ2 = seleccionIndexJ2 == 0 ? "Charizard" : (seleccionIndexJ2 == 1 ? "Greninja" : "Pikachu");
+            // confirmar seleccion
             if (input.ataque2Pulse) {
                 input.ataque2Pulse = false;
                 boolean selMuerto2 = (seleccionIndexJ2==0 && muertoC) || (seleccionIndexJ2==1 && muertoG) || (seleccionIndexJ2==2 && muertoP);
@@ -874,6 +889,7 @@ public class Juego extends JPanel implements ActionListener {
             }
         }
 
+        // animacion de salida de ash para jugador 1
         if (ashSaliendoJ1) {
             jugador1.setX(jugador1.getX() + dirSalidaAshJ1 * 8);
             if (jugador1.getX() < -200) {
@@ -888,6 +904,7 @@ public class Juego extends JPanel implements ActionListener {
                 jugador1.onCountdownStart();
             }
         }
+        // animacion de salida de ash para jugador 2
         if (ashSaliendoJ2) {
             jugador2.setX(jugador2.getX() + dirSalidaAshJ2 * 8);
             if (jugador2.getX() > baseWidth + 200 - jugador2.getBounds().width) {
@@ -903,6 +920,7 @@ public class Juego extends JPanel implements ActionListener {
             }
         }
 
+            // manejar controles del jugador 1
             if (!seleccionActivaJ1 && !ashSaliendoJ1 && !pokemonVolviendoJ1) {
                 if (input.izquierda1) jugador1.moverIzquierda();
                 else if (input.derecha1) jugador1.moverDerecha();
@@ -915,6 +933,7 @@ public class Juego extends JPanel implements ActionListener {
                 jugador1.setAgachado(false);
             }
 
+            // manejar controles del jugador 2 (o ia en modo historia)
             if (!seleccionActivaJ2 && !ashSaliendoJ2 && !pokemonVolviendoJ2) {
                 if (storyMode) {
                     if (botIA != null) botIA.actualizar(jugador2, jugador1);
@@ -933,16 +952,19 @@ public class Juego extends JPanel implements ActionListener {
             }
         }
 
+        // actualizar estado de los jugadores
         jugador1.actualizar();
         jugador2.actualizar();
 
         if (!juegoTerminado) {
 
+            // aplicar dano por tiempo agotado
             if (tiempoAgotado) {
                 jugador1.recibirDano(drainRatePorFrame);
                 jugador2.recibirDano(drainRatePorFrame);
             }
 
+        // manejar colisiones de ataques
         if (!tiempoAgotado && !enCuentaRegresiva) {
             if (jugador1.atacando && !jugador1.haGolpeado() && jugador1.getBounds().intersects(jugador2.getBounds())) {
                 boolean invulBoss = storyMode && bossFinalActivo && bossInvulFrames > 0;
@@ -976,6 +998,7 @@ public class Juego extends JPanel implements ActionListener {
         }
         }
 
+        // manejar derrota de pokemon del jugador 1
         if (pokemonActivoJ1 && pokemonVidaJ1 <= 0 && !pokemonVolviendoJ1) {
             jugador1.onGameOver(true);
 
@@ -994,6 +1017,7 @@ public class Juego extends JPanel implements ActionListener {
                 esperaAudioPokemonKOJ1 = Math.min(Math.max(audioFramesKO, 90), 240);
             } catch (Exception ignored) { esperaAudioPokemonKOJ1 = 120; }
         }
+        // animacion de retorno de pokemon derrotado para jugador 1
         if (pokemonVolviendoJ1) {
             jugador1.setX(jugador1.getX() + dirSalidaAshJ1 * 8);
             if (esperaAudioPokemonKOJ1 > 0) esperaAudioPokemonKOJ1--;
@@ -1013,6 +1037,7 @@ public class Juego extends JPanel implements ActionListener {
             }
         }
 
+        // animacion de regreso de ash para jugador 1
         if (ashRegresandoJ1) {
             jugador1.setX(jugador1.getX() + 8);
             if (jugador1.getX() >= 100) {
@@ -1021,6 +1046,7 @@ public class Juego extends JPanel implements ActionListener {
             }
         }
 
+        // manejar derrota de pokemon del jugador 2
         if (pokemonActivoJ2 && pokemonVidaJ2 <= 0 && !pokemonVolviendoJ2) {
             jugador2.onGameOver(true);
             if ("Charizard".equals(seleccionPokemonJ2)) muertoC = true;
@@ -1036,6 +1062,7 @@ public class Juego extends JPanel implements ActionListener {
                 esperaAudioPokemonKOJ2 = Math.min(Math.max(audioFramesKO2, 90), 240);
             } catch (Exception ignored) { esperaAudioPokemonKOJ2 = 120; }
         }
+        // animacion de retorno de pokemon derrotado para jugador 2
         if (pokemonVolviendoJ2) {
             jugador2.setX(jugador2.getX() + dirSalidaAshJ2 * 8);
             if (esperaAudioPokemonKOJ2 > 0) esperaAudioPokemonKOJ2--;
@@ -1054,6 +1081,7 @@ public class Juego extends JPanel implements ActionListener {
             }
         }
 
+        // animacion de regreso de ash para jugador 2
         if (ashRegresandoJ2) {
             jugador2.setX(jugador2.getX() - 8);
             if (jugador2.getX() <= 500) {
@@ -1062,6 +1090,7 @@ public class Juego extends JPanel implements ActionListener {
             }
         }
 
+        // verificar condiciones de victoria
         if (jugador1.getVida() <= 0 || jugador2.getVida() <= 0) {
             boolean empate = jugador1.getVida() <= 0 && jugador2.getVida() <= 0;
             if (empate) {
@@ -1143,6 +1172,7 @@ public class Juego extends JPanel implements ActionListener {
         }
     }
 
+    // mostrar dialogo de alerta con estilo pixel para modo historia
     private int mostrarAlertaHistoriaPixel(String mensaje, String titulo, String[] opciones, String defaultOption, int messageType) {
         JDialog dialog = new JDialog(ventana, titulo, true);
         dialog.setUndecorated(true);
@@ -1192,6 +1222,7 @@ public class Juego extends JPanel implements ActionListener {
         return result[0] < 0 ? 0 : result[0];
     }
 
+    // mostrar pantalla final negra para modo historia
     private int mostrarPantallaFinalNegraHistoria() {
         javax.swing.JDialog dialog = new javax.swing.JDialog(ventana, true);
         dialog.setUndecorated(true);
@@ -1247,6 +1278,7 @@ public class Juego extends JPanel implements ActionListener {
     }
     
 
+    // reiniciar el juego completo
     private void reiniciarJuego() {
 
         jugador1.setVida(jugador1.getVidaMax());
@@ -1296,6 +1328,7 @@ public class Juego extends JPanel implements ActionListener {
         repaint();
     }
 
+    // preparar una nueva ronda despues de una victoria/derrota
     private void prepararNuevaRonda() {
         jugador1.setVida(jugador1.getVidaMax());
         jugador2.setVida(jugador2.getVidaMax());
@@ -1326,6 +1359,7 @@ public class Juego extends JPanel implements ActionListener {
         repaint();
     }
 
+    // convertir id de personaje a nombre para mostrar
     private String nombreDisplayDesdeId(String id) {
         if (id == null) return "-";
         return switch (id) {
@@ -1337,6 +1371,7 @@ public class Juego extends JPanel implements ActionListener {
         };
     }
 
+    // activar el modo historia con niveles dados
     public void activarStoryMode(Level[] niveles) {
         this.storyMode = true;
         this.nivelesHistoria = niveles;
@@ -1381,6 +1416,7 @@ public class Juego extends JPanel implements ActionListener {
         }
     }
 
+    // aplicar configuracion del nivel actual del modo historia
     private void aplicarNivelActual() {
         if (nivelesHistoria == null || indiceNivel < 0 || indiceNivel >= nivelesHistoria.length) return;
         Level lvl = nivelesHistoria[indiceNivel];
@@ -1464,6 +1500,7 @@ public class Juego extends JPanel implements ActionListener {
     }
 
     
+    // obtener segundos iniciales segun personaje
     private int obtenerSegundosIniciales() {
         try {
             String oppId = (jugador2 != null) ? jugador2.getPersonajeId() : null;
@@ -1472,6 +1509,7 @@ public class Juego extends JPanel implements ActionListener {
         return 90;
     }
 
+    // mostrar menu de pausa
     private void mostrarMenuPausa() {
 
         Color PIXEL_BLACK = new Color(10,10,10);
@@ -1549,6 +1587,7 @@ public class Juego extends JPanel implements ActionListener {
         }
     }
 
+    // mostrar menu de resolucion
     private void mostrarMenuResolucion() {
         String[] resols = {"640 x 480", "960 x 540", "1280 x 720", "1920 x 1080"};
         int sel = JOptionPane.showOptionDialog(
@@ -1573,6 +1612,7 @@ public class Juego extends JPanel implements ActionListener {
         ventana.requestFocus();
     }
 
+    // mostrar controles del juego
     private void mostrarControles() {
         String controles = "Jugador 1:\n" +
                 "- Izquierda: A\n" +
@@ -1603,6 +1643,7 @@ public class Juego extends JPanel implements ActionListener {
         JOptionPane.showMessageDialog(ventana, controles, "Controles", JOptionPane.INFORMATION_MESSAGE);
     }
 
+    // cambiar resolucion de la ventana
     private void cambiarResolucion(int w, int h) {
 
         ventana.setExtendedState(JFrame.NORMAL);
@@ -1616,6 +1657,7 @@ public class Juego extends JPanel implements ActionListener {
         ventana.requestFocus();
     }
 
+    // cargar imagen de fondo
     private void cargarFondo(String archivo) {
         try {
 
@@ -1644,6 +1686,7 @@ public class Juego extends JPanel implements ActionListener {
         }
     }
 
+    // aplicar seleccion inicial de personajes y fondo
     public void aplicarSeleccionInicial(String pj1, String pj2, String fondo) {
         if (pj1 != null) aplicarPersonaje(jugador1, pj1);
         if (pj2 != null) aplicarPersonaje(jugador2, pj2);
@@ -1672,6 +1715,7 @@ public class Juego extends JPanel implements ActionListener {
         // Este método no se usa actualmente pero se mantiene para compatibilidad futura
     }
 
+    // aplicar configuracion de personaje a un jugador
     private void aplicarPersonaje(Jugador jugador, String personajeId) {
         jugador.stopAllAudio();
         String images = "";
@@ -1951,6 +1995,4 @@ public class Juego extends JPanel implements ActionListener {
         }
     }
     
-    
 }
-
