@@ -1,0 +1,49 @@
+# Archivos compilados de Java
+*.class
+
+# Archivos de log
+*.log
+
+# Archivos de BlueJ
+*.ctxt
+
+# Archivos de Mobile Tools for Java (J2ME)
+.mtj.tmp/
+
+# Archivos de paquetes
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Logs de máquina virtual
+hs_err_pid*
+replay_pid*
+
+# Directorios de IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Directorios de compilación
+bin/
+build/
+out/
+target/
+
+# Scripts de compilación (opcional - descomenta si no quieres incluirlos)
+# compile.bat
+# run.bat
+
+# Archivos de configuración específicos del IDE
+.classpath
+.project
+.settings/
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db

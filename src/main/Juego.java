@@ -4,137 +4,135 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 
+// clase principal del motor de juego - maneja toda la logica de combate, fisica y renderizado
+@SuppressWarnings({"serial", "this-escape"})
 public class Juego extends JPanel implements ActionListener {
-
-    private JFrame ventana;
-    private Timer timer;
-    private Jugador jugador1, jugador2;
-    private Input input;
-    private boolean juegoTerminado = false;
-    private String mensajeVictoria = "";
-    private boolean enCuentaRegresiva = true;
-    private int contadorRegresivo = 3; // 3, 2, 1, FIGHT
-    private int contadorFrames = 0;     // para controlar el tiempo
-    private JButton botonReiniciar;
-    private JButton botonCambiar;
-    private boolean juegoIniciado = false;
-    private int contadorInicio = 3;
-    // Base de diseño para escalado responsive
+    private static final long serialVersionUID = 1L;
+    
+    // dimensiones base del juego
     private final int baseWidth = 800;
     private final int baseHeight = 600;
-    // Pausa
-    private boolean enPausa = false;
-    private boolean escPrev = false;
-    // Cronómetro de partida
-    private int segundosRestantes = 90;
-    private int framesTimer = 0; // deprecado
-    private long cronometroAcumuladoNanos = 0L;
-    private boolean tiempoAgotado = false;
-    private int drainRatePorFrame = 1;
-    // Marcador mejor de 3 victorias
-    private int victoriasJ1 = 0;
-    private int victoriasJ2 = 0;
-    // Selección de personajes
-    private String personajeSelJ1 = null;
-    private String personajeSelJ2 = null;
-    private boolean inicioAudioLanzado = false;
-    private boolean inicioAudioJ2Pendiente = false;
-    private int framesDelayAudioJ2 = 0;
-    private static final int FRAMES_ESPERA_AUDIO_J2 = 60; // ~1.0s a ~60fps
-    private int delayAudioJ2Frames = 20;
-    // Espera al final del match para terminar audios/animaciones
-    private boolean enEsperaPostMatch = false;
-    private int framesEsperaPostMatch = 0;
-    // Espera al final de la ronda (no match) para reproducir sólo derrotado
-    private boolean enEsperaPostRonda = false;
-    private int framesEsperaPostRonda = 0;
-    // Retirada del ganador antes de animación KO
-    private boolean enRetiradaTrasKO = false;
-    private Jugador ganadorKO = null;
-    private Jugador derrotadoKO = null;
-    private int framesRetiradaKO = 0;
-    private int velRetiradaKO = 5;
-    private int dirRetiradaKO = 1;
-    private boolean esMatchKO = false;
-    // Fondo del escenario
+
+    // componentes principales del juego
+    private JFrame ventana;                    // ventana principal
+    private Timer timer;                       // timer principal del game loop
+    private Jugador jugador1, jugador2;       // los dos jugadores
+    private Input input;                       // gestor de entrada de teclado
+    
+    // estado general del juego
+    private boolean juegoTerminado = false;    // si el juego ha terminado
+    private String mensajeVictoria = "";       // mensaje del ganador
+    private boolean enCuentaRegresiva = true;  // si esta en cuenta regresiva inicial
+    private int contadorRegresivo = 3;         // contador 3-2-1-fight
+    private int contadorFrames = 0;            // frames para la cuenta regresiva
+    private JButton botonReiniciar;            // boton para reiniciar
+    private JButton botonCambiar;              // boton para cambiar personajes
+    
+    // sistema de pausa
+    private boolean enPausa = false;           // si el juego esta pausado
+    private boolean escPrev = false;           // estado previo de esc
+    
+    // sistema de tiempo y cronometria
+    private int segundosRestantes = 90;        // segundos restantes en la ronda
+    private long cronometroAcumuladoNanos = 0L; // acumulador de nanosegundos
+    private boolean tiempoAgotado = false;     // si se agoto el tiempo
+    private int drainRatePorFrame = 1;         // dano por frame cuando se agota el tiempo
+    
+    // sistema de puntuacion (mejor de 3)
+    private int victoriasJ1 = 0;               // victorias del jugador 1
+    private int victoriasJ2 = 0;               // victorias del jugador 2
+    
+    // seleccion de personajes
+    
+    // sistema de intros de personajes
+    private boolean introJ1Terminada = false;  // si termino la intro del j1
+    private boolean introJ2Terminada = false;  // si termino la intro del j2
+    private int framesEsperaIntroJ1 = 0;       // frames de espera para intro j1
+    private int framesDelayAudioJ2 = 0;        // delay para audio de intro j2
+    
+    // sistema de esperas post-combate
+    private boolean enEsperaPostMatch = false;  // espera despues del match completo
+    private int framesEsperaPostMatch = 0;      // frames de espera post-match
+    private boolean enEsperaPostRonda = false;  // espera despues de cada ronda
+    private int framesEsperaPostRonda = 0;      // frames de espera post-ronda
+    
+    // sistema de animaciones de ko (removido - no se usaba)
+    
+    // sistema de fondos
     private Image fondoImg = null;
     private String fondoSel = "deathStar.png";
 
-    // Overlay y estado de selección de Pokémon (Ash)
+    // sistema de seleccion de pokemon para ash
     private Sprite selAshBase = null;
     private Sprite selAshC = null;
     private Sprite selAshG = null;
     private Sprite selAshP = null;
     private boolean seleccionActivaJ1 = false;
-    private int seleccionIndexJ1 = 0; // 0:C, 1:G, 2:P
+    private int seleccionIndexJ1 = 0;
     private String seleccionPokemonJ1 = null;
-    // Estado de selección para Jugador 2 (Ash)
     private boolean seleccionActivaJ2 = false;
-    private int seleccionIndexJ2 = 0; // 0:C, 1:G, 2:P
+    private int seleccionIndexJ2 = 0;
     private String seleccionPokemonJ2 = null;
-    // Estados de Pokémons muertos (no re-seleccionables)
-    private boolean muertoC = false; // Charizard
-    private boolean muertoG = false; // Greninja
-    private boolean muertoP = false; // Pikachu
-    // Flujo de salida de Ash y estado del pokémon de J1
+    
+    // Estado de Pokémon derrotados (Charizard, Greninja, Pikachu)
+    private boolean muertoC = false;
+    private boolean muertoG = false;
+    private boolean muertoP = false;
+    
+    // Sistema de mecánicas de Ash y Pokémon para Jugador 1
     private boolean ashSaliendoJ1 = false;
-    private int dirSalidaAshJ1 = -1; // J1 sale a la izquierda
+    private int dirSalidaAshJ1 = -1;
     private boolean pokemonActivoJ1 = false;
-    private int pokemonVidaJ1 = 200;
+    private int pokemonVidaJ1 = 25;
     private boolean pokemonVolviendoJ1 = false;
-    private int shrinkAlturaJ1 = 300; // altura visual para efecto de regreso a pokebola
-    private int esperaAudioPokemonKOJ1 = 0; // frames de espera para terminar audio de GameOver del Pokémon
-    // Flujo de Jugador 2
+    private int shrinkAlturaJ1 = 300;
+    private int esperaAudioPokemonKOJ1 = 0;
+    private boolean ashRegresandoJ1 = false;
+    
+    // Sistema de mecánicas de Ash y Pokémon para Jugador 2
     private boolean ashSaliendoJ2 = false;
-    private int dirSalidaAshJ2 = 1; // J2 sale a la derecha
+    private int dirSalidaAshJ2 = 1;
     private boolean pokemonActivoJ2 = false;
-    private int pokemonVidaJ2 = 200;
+    private int pokemonVidaJ2 = 25;
     private boolean pokemonVolviendoJ2 = false;
     private int shrinkAlturaJ2 = 300;
-    private int esperaAudioPokemonKOJ2 = 0; // frames de espera para terminar audio de GameOver del Pokémon
+    private int esperaAudioPokemonKOJ2 = 0;
+    private boolean ashRegresandoJ2 = false;
 
-    // --- Modo Historia ---
+    // sistema de modo historia
     private boolean storyMode = false;
     private Level[] nivelesHistoria = null;
     private int indiceNivel = 0;
     private BotIA botIA = null;
     private boolean bossFinalActivo = false;
-    private int bossCycleFrames = 0;    // cuenta hacia 20s (~1250 frames)
-    private int bossInvulFrames = 0;    // invulnerable por ~5s (~312 frames)
-    // Debug: contador de ticks para verificar actividad del timer
-    private int debugTickCount = 0;
+    private int bossCycleFrames = 0;
+    private int bossInvulFrames = 0;
 
-
-
+    // constructor: inicializa la ventana y componentes del juego
     public Juego() {
-    ventana = new JFrame("Multiverse Dominion");
-    ventana.setSize(baseWidth, baseHeight);
-    ventana.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-    ventana.setResizable(true);
-    ventana.add(this);
-    // Iniciar en pantalla completa (maximizado)
-    ventana.setExtendedState(JFrame.MAXIMIZED_BOTH);
-    // Menú de opciones ahora se muestra al presionar ESC (pausa)
-    ventana.setVisible(true);
+        // configurar ventana principal
+        ventana = new JFrame("Multiverse Dominion");
+        ventana.setSize(baseWidth, baseHeight);
+        ventana.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        ventana.setResizable(true);
+        ventana.setExtendedState(JFrame.MAXIMIZED_BOTH);
 
-    // Input
+        // configurar sistema de entrada (teclado y mouse)
         input = new Input();
-        // Escuchar teclado tanto en la ventana como en el panel para mayor fiabilidad
         ventana.addKeyListener(input);
         try {
             this.addKeyListener(input);
             this.setFocusable(true);
             this.setFocusTraversalKeysEnabled(false);
-            // Click en el panel recupera el foco del teclado
             this.addMouseListener(new java.awt.event.MouseAdapter() {
-                @Override public void mousePressed(java.awt.event.MouseEvent e) {
+                @Override 
+                public void mousePressed(java.awt.event.MouseEvent e) {
                     try {
                         requestFocusInWindow();
                         if (ventana != null) ventana.requestFocus();
                     } catch (Exception ignored) {}
                 }
             });
-            // Solicitar foco tras construir la UI en el EDT
             SwingUtilities.invokeLater(() -> {
                 try {
                     this.requestFocusInWindow();
@@ -143,7 +141,7 @@ public class Juego extends JPanel implements ActionListener {
             });
         } catch (Exception ignore) {}
 
-    // Verificación de Timer tras mostrar la UI (asegurar arranque en EDT)
+    // inicializar timer del juego
     SwingUtilities.invokeLater(() -> {
         try {
             if (timer != null && !timer.isRunning()) {
@@ -153,45 +151,51 @@ public class Juego extends JPanel implements ActionListener {
         } catch (Exception ignored) {}
     });
 
-    // Jugadores
+    // crear jugadores por defecto
     jugador1 = new Jugador("J1", 100, 500, Color.BLUE);
     jugador2 = new Jugador("J2", 500, 500, Color.RED);
 
+    // aplicar personajes por defecto
     aplicarPersonaje(jugador1, "Darth_Vader");
     aplicarPersonaje(jugador2, "Darth_Vader");
 
-    // Cargar fondo inicial
+    // configurar fondo y timer principal
     cargarFondo(fondoSel);
-    // Timer para el loop del juego (60 FPS)
     timer = new Timer(16, this);
     timer.start();
     System.out.println("[DEBUG] Timer creado y arrancado");
 
-    // Cargar imágenes de overlay de selección de Ash
+    // cargar sprites de seleccion de pokemon para ash
     try {
         selAshBase = new Sprite("Pokemon/Ash/images/ash_seleccion.png");
         selAshC = new Sprite("Pokemon/Ash/images/ash_seleccion_c.png");
         selAshG = new Sprite("Pokemon/Ash/images/ash_seleccion_g.png");
         selAshP = new Sprite("Pokemon/Ash/images/ash_seleccion_p.png");
     } catch (Exception ex) {
-        System.out.println("[WARN] Imágenes de selección Ash no cargadas: " + ex.getMessage());
+        System.out.println("[WARN] imagenes de seleccion ash no cargadas: " + ex.getMessage());
     }
+
+    // finalizar configuracion de ventana despues de inicializacion completa
+    ventana.add(this);
+    ventana.setVisible(true);
 }
 
+    // metodo principal de renderizado - dibuja todo el juego
     @Override
     public void paintComponent(Graphics g) {
         super.paintComponent(g);
         
+        // calcular escalado para diferentes resoluciones
         float scaleX = getWidth() / (float) baseWidth;
         float scaleY = getHeight() / (float) baseHeight;
 
-        // Paleta pixel rojo/negro
+        // definir colores y fuentes del tema pixel art
         Color PIXEL_BLACK = new Color(10,10,10);
         Color PIXEL_RED = new Color(170,0,0);
         Color PIXEL_RED_DARK = new Color(120,0,0);
         Font PIXEL_FONT = new Font("Courier New", Font.BOLD, Math.max(10, (int)(14 * scaleY)));
 
-        // Fondo
+        // dibujar fondo del escenario
         if (fondoImg != null) {
             g.drawImage(fondoImg, 0, 0, getWidth(), getHeight(), null);
         } else {
@@ -199,7 +203,7 @@ public class Juego extends JPanel implements ActionListener {
             g.fillRect(0, 0, getWidth(), getHeight());
         }
 
-        // Suelo pixelado (gris)
+        // Dibujar suelo de combate
         int sueloY = (int) (500 * scaleY);
         int sueloH = (int) (100 * scaleY);
         Color GRAY_MID = new Color(90,90,90);
@@ -209,7 +213,7 @@ public class Juego extends JPanel implements ActionListener {
         g.fillRect(0, sueloY - 2, getWidth(), 2);
         g.fillRect(0, sueloY - 5, getWidth(), 2);
 
-        // Si aún no están inicializados los jugadores, dibujar mensaje y salir
+        // Verificar que los jugadores estén inicializados
         if (jugador1 == null || jugador2 == null) {
             g.setColor(PIXEL_RED);
             int fontInit = Math.max(12, (int) (20 * scaleY));
@@ -218,7 +222,7 @@ public class Juego extends JPanel implements ActionListener {
             return;
         }
 
-        // Barras de vida estilo pixel
+        // Dibujar barras de vida de los jugadores
         int margin = (int) (20 * scaleX);
         int barW = (int) (300 * scaleX);
         int barH = (int) (20 * scaleY);
@@ -226,11 +230,9 @@ public class Juego extends JPanel implements ActionListener {
         int j1BarX = margin;
         int j2BarX = getWidth() - margin - barW;
         g.setFont(PIXEL_FONT);
-        // Bordes negros gruesos
         g.setColor(Color.BLACK);
         g.fillRect(j1BarX - 6, barY - 6, barW + 12, barH + 12);
         g.fillRect(j2BarX - 6, barY - 6, barW + 12, barH + 12);
-        // Relleno rojo según vida (normalizar a vidaMax de cada jugador)
         double vidaMaxJ1 = Math.max(1, jugador1.getVidaMax());
         double vidaMaxJ2 = Math.max(1, jugador2.getVidaMax());
         int j1Len = Math.max(0, Math.min(barW, (int)(barW * (jugador1.getVida() / vidaMaxJ1))));
@@ -238,41 +240,34 @@ public class Juego extends JPanel implements ActionListener {
         g.setColor(PIXEL_RED);
         g.fillRect(j1BarX, barY, j1Len, barH);
         g.fillRect(j2BarX, barY, j2Len, barH);
-        // Barra secundaria de vida del Pokémon de J1, más fina y separada
+        // Dibujar barras de vida de Pokémon activos
         if (pokemonActivoJ1) {
             int sep = Math.max(4, (int)(6 * scaleY));
             int barH2 = Math.max(6, (int)(10 * scaleY));
             int barY2 = barY + barH + sep;
-            // Marco negro
             g.setColor(Color.BLACK);
             g.fillRect(j1BarX - 4, barY2 - 4, barW + 8, barH2 + 8);
-            // Relleno rojo según vida del Pokémon (base 200)
-            int pLen = Math.max(0, (int)(barW * (pokemonVidaJ1 / 200.0)));
+            int pLen = Math.max(0, (int)(barW * (pokemonVidaJ1 / 25.0)));
             g.setColor(PIXEL_RED);
             g.fillRect(j1BarX, barY2, pLen, barH2);
         }
-        // Barra secundaria de vida del Pokémon de J2, simétrica a J1
         if (pokemonActivoJ2) {
             int sep = Math.max(4, (int)(6 * scaleY));
             int barH2 = Math.max(6, (int)(10 * scaleY));
             int barY2 = barY + barH + sep;
-            // Marco negro
             g.setColor(Color.BLACK);
             g.fillRect(j2BarX - 4, barY2 - 4, barW + 8, barH2 + 8);
-            // Relleno rojo según vida del Pokémon de J2 (base 200)
-            int pLen2 = Math.max(0, (int)(barW * (pokemonVidaJ2 / 200.0)));
+            int pLen2 = Math.max(0, (int)(barW * (pokemonVidaJ2 / 25.0)));
             g.setColor(PIXEL_RED);
             g.fillRect(j2BarX, barY2, pLen2, barH2);
         }
         
-        // Cronómetro superior: usa cuenta regresiva o segundos
         int boxWTop = Math.max(70, (int)(90 * scaleX));
         int boxHTop = Math.max(30, (int)(40 * scaleY));
         int cxTop = (getWidth() - boxWTop) / 2;
         int cyTop = barY - (int)(5 * scaleY);
         g.setColor(PIXEL_RED);
         g.fillRect(cxTop, cyTop, boxWTop, boxHTop);
-        // Borde más grueso
         java.awt.Graphics2D g2 = (java.awt.Graphics2D) g;
         g2.setColor(Color.BLACK);
         g2.setStroke(new java.awt.BasicStroke(4));
@@ -292,7 +287,6 @@ public class Juego extends JPanel implements ActionListener {
         g.drawString(timerText, txTop, tyTop+1);
         g.drawString(timerText, txTop, tyTop);
         
-        // Marcador J1/J2 debajo del cronómetro (con caja estilo timer)
         String etiquetaJ2 = storyMode ? "Oponente" : "J2";
         String marcador = "J1 " + victoriasJ1 + " - " + etiquetaJ2 + " " + victoriasJ2;
         g.setFont(new Font("Monospaced", Font.BOLD, Math.max(12, (int)(18 * scaleY))));
@@ -303,7 +297,6 @@ public class Juego extends JPanel implements ActionListener {
         int cyScore = cyTop + boxHTop + (int)(10 * scaleY);
         g.setColor(new Color(170,0,0));
         g.fillRect(cxScore, cyScore, boxWScore, boxHScore);
-        // Borde más grueso para marcador
         g2.setColor(Color.BLACK);
         g2.setStroke(new java.awt.BasicStroke(4));
         g2.drawRect(cxScore, cyScore, boxWScore, boxHScore);
@@ -318,11 +311,7 @@ public class Juego extends JPanel implements ActionListener {
         g.drawString(marcador, txScore, tyScore-1);
         g.drawString(marcador, txScore, tyScore+1);
         g.drawString(marcador, txScore, tyScore);
-        // Marcador ya dibujado dentro de la caja estilo timer
 
-        // Orientación dinámica: que se miren siempre
-        // Si J1 está a la derecha de J2, J1 mira a la izquierda (flip) y J2 a la derecha (no flip).
-        // Si J1 vuelve a estar a la izquierda, invertimos de nuevo.
         try {
             int centroJ1 = jugador1.getX() + Math.max(10, jugador1.getBounds().width) / 2;
             int centroJ2 = jugador2.getX() + Math.max(10, jugador2.getBounds().width) / 2;
@@ -331,16 +320,12 @@ public class Juego extends JPanel implements ActionListener {
             jugador2.setFlipHorizontal(!j1MasDerecha);
         } catch (Exception ignored) {}
 
-        // Dibujar jugadores (pasar el panel como observer para animar GIFs)
         jugador1.dibujar(g, this, scaleX, scaleY);
         jugador2.dibujar(g, this, scaleX, scaleY);
 
-        // Overlay de selección Pokémon (Ash) por encima de todo
         if (seleccionActivaJ1) {
-            // fondo semitransparente
             g.setColor(new Color(0,0,0,150));
             g.fillRect(0, 0, getWidth(), getHeight());
-            // dibujar base y opción resaltada al centro
             int overlayW = (int)(Math.min(getWidth(), getHeight()) * 0.7);
             int overlayH = (int)(overlayW * 0.6);
             int ox = (getWidth() - overlayW) / 2;
@@ -355,16 +340,13 @@ public class Juego extends JPanel implements ActionListener {
                 g.drawImage(highlight.getImagen(), ox, oy, overlayW, overlayH, this);
                 dibujadoConImagen = true;
             }
-            // Fallback gráfico si no hay imágenes: dibujar panel con letras C/G/P y resaltar selección
             if (!dibujadoConImagen) {
-                // Panel
                 g.setColor(new Color(20,20,20));
                 g.fillRoundRect(ox, oy, overlayW, overlayH, 20, 20);
                 g2.setColor(new Color(170,0,0));
                 g2.setStroke(new java.awt.BasicStroke(4));
                 g2.drawRoundRect(ox, oy, overlayW, overlayH, 20, 20);
 
-                // Título
                 String titulo = "Selecciona tu Pokémon";
                 g.setColor(Color.WHITE);
                 g.setFont(new Font("Courier New", Font.BOLD, Math.max(18, (int)(26 * scaleY))));
@@ -373,7 +355,6 @@ public class Juego extends JPanel implements ActionListener {
                 int ty = oy + Math.max(30, (int)(40 * scaleY));
                 g.drawString(titulo, tx, ty);
 
-                // Opciones C/G/P (marcar con X si están muertos)
                 int opcW = overlayW / 3;
                 int baseY = oy + overlayH / 2;
                 for (int i = 0; i < 3; i++) {
@@ -387,7 +368,6 @@ public class Juego extends JPanel implements ActionListener {
                     g2.setColor(sel ? new Color(170,0,0) : new Color(120,120,120));
                     g2.setStroke(new java.awt.BasicStroke(sel ? 3 : 2));
                     g2.drawRoundRect(bx, baseY - bh/2, bw, bh, 12, 12);
-                    // Letra
                     char letra = (i==0?'C':(i==1?'G':'P'));
                     g.setColor(sel ? Color.WHITE : new Color(200,200,200));
                     g.setFont(new Font("Courier New", Font.BOLD, Math.max(30, (int)(44 * scaleY))));
@@ -396,7 +376,6 @@ public class Juego extends JPanel implements ActionListener {
                     int ly = baseY + fmo.getAscent()/2 - 6;
                     g.drawString(String.valueOf(letra), lx, ly);
                     if (muerto) {
-                        // Dibujar X roja encima para indicar no seleccionable
                         g2.setColor(new Color(170,0,0));
                         g2.setStroke(new java.awt.BasicStroke(4));
                         int pad = Math.max(10, (int)(12 * scaleY));
@@ -405,7 +384,6 @@ public class Juego extends JPanel implements ActionListener {
                     }
                 }
             }
-            // Ayuda de texto
             g.setColor(new Color(170,0,0));
             g.setFont(new Font("Courier New", Font.BOLD, Math.max(12, (int)(18 * scaleY))));
             String help = "F: abrir | A/D: navegar | E: cancelar | R: confirmar";
@@ -415,7 +393,6 @@ public class Juego extends JPanel implements ActionListener {
             g.drawString(help, hx, Math.min(hy, getHeight() - 10));
         }
 
-        // Overlay de selección Pokémon (Ash) para J2
         if (seleccionActivaJ2) {
             g.setColor(new Color(0,0,0,150));
             g.fillRect(0, 0, getWidth(), getHeight());
@@ -487,35 +464,30 @@ public class Juego extends JPanel implements ActionListener {
             g.drawString(help2, hx2, Math.min(hy2, getHeight() - 10));
         }
 
-        // Removido el letrero central de FIGHT para evitar invasivo
-        // (ya se muestra dentro del cronómetro superior)
-        
         if (juegoTerminado) {
             int fontSize2 = Math.max(18, (int) (50 * scaleY));
             g.setFont(new Font("Monospaced", Font.BOLD, fontSize2));
-            g.setColor(PIXEL_RED);
             FontMetrics fm = g.getFontMetrics();
             int textoX = (getWidth() - fm.stringWidth(mensajeVictoria)) / 2;
             int textoY = getHeight() / 2;
+
+            g.setColor(Color.WHITE);
+            for (int dx = -3; dx <= 3; dx++) {
+                for (int dy = -3; dy <= 3; dy++) {
+                    if (dx != 0 || dy != 0) {
+                        g.drawString(mensajeVictoria, textoX + dx, textoY + dy);
+                    }
+                }
+            }
+            g.setColor(Color.RED);
             g.drawString(mensajeVictoria, textoX, textoY);
         }
+
     }
 
     @Override
     public void actionPerformed(ActionEvent e) {
         try {
-        // Debug limitado: imprimir cada ~1s para confirmar actividad del timer
-        try {
-            debugTickCount++;
-            if (debugTickCount % 60 == 0) {
-                System.out.println("[DEBUG] Tick:" + debugTickCount +
-                    " enCuentaRegresiva=" + enCuentaRegresiva +
-                    " contador=" + contadorRegresivo +
-                    " pausa=" + enPausa +
-                    " tiempoAgotado=" + tiempoAgotado);
-            }
-        } catch (Exception ignored) {}
-        // Toggle de pausa con ESC (detección de flanco) - permitir incluso durante esperas
         if (input.esc && !escPrev) {
             enPausa = !enPausa;
             if (enPausa) {
@@ -524,15 +496,21 @@ public class Juego extends JPanel implements ActionListener {
         }
         escPrev = input.esc;
 
-        // Asegurar IA activa en Modo Historia si quedó nula por errores previos
+        // Reinicializar IA si es necesario en modo historia
         if (storyMode && botIA == null) {
             try {
                 botIA = new BotIA();
                 if (nivelesHistoria != null && indiceNivel >= 0 && indiceNivel < nivelesHistoria.length) {
                     Level lvl = nivelesHistoria[indiceNivel];
-                    botIA.setNivel(lvl.dificultadIA);
-                    botIA.setOverrides(lvl.overrideRangoAtaque, lvl.overrideVelAcercamiento, lvl.overrideCooldownAtaque,
-                            lvl.overrideProbSalto, lvl.overrideProbAgachar, lvl.overrideDistEvadir, lvl.overrideAgresividad);
+                    botIA.setOverrides(
+                        lvl.getOverrideRangoAtaque(),
+                        lvl.getOverrideVelAcercamiento(),
+                        lvl.getOverrideCooldownAtaque(),
+                        lvl.getOverrideProbSalto(),
+                        lvl.getOverrideProbAgachar(),
+                        lvl.getOverrideDistEvadir(),
+                        lvl.getOverrideAgresividad()
+                    );
                 }
                 System.out.println("[Historia][IA] BotIA re-inicializada correctamente tras ser nula.");
             } catch (Throwable t) {
@@ -540,22 +518,21 @@ public class Juego extends JPanel implements ActionListener {
             }
         }
 
-        // Ciclo de invulnerabilidad del jefe final (5s cada ~20s)
+        // Manejar mecánicas del jefe final (invulnerabilidad cíclica)
         if (storyMode && bossFinalActivo && !enCuentaRegresiva && !tiempoAgotado && !juegoTerminado) {
             if (bossInvulFrames > 0) {
                 bossInvulFrames--;
             } else {
                 bossCycleFrames++;
-                // ~20s a ~60fps ≈ 1250 frames; invul 5s ≈ 312 frames
                 if (bossCycleFrames >= 1250) {
                     bossInvulFrames = 312;
                     bossCycleFrames = 0;
                 }
             }
         }
-        // Espera post-ronda para terminar audio/animación del derrotado y luego continuar
+
+        // Manejar espera después de cada ronda
         if (enEsperaPostRonda) {
-            // Congelar movimiento pero seguir actualizando para que la animación de derrota avance y vuelva a idle
             jugador1.congelar();
             jugador2.congelar();
             if (framesEsperaPostRonda > 0) {
@@ -571,9 +548,9 @@ public class Juego extends JPanel implements ActionListener {
                 return;
             }
         }
-        // Espera post-match para terminar audios/animaciones antes de mostrar opciones
+
+        // Manejar espera después del match completo
         if (enEsperaPostMatch) {
-            // Congelar movimiento pero seguir actualizando para que la animación de derrota avance y vuelva a idle
             jugador1.congelar();
             jugador2.congelar();
             if (framesEsperaPostMatch > 0) {
@@ -584,14 +561,14 @@ public class Juego extends JPanel implements ActionListener {
                 return;
             } else {
                 enEsperaPostMatch = false;
-                // En Modo Historia: ofrecer opciones de progreso o reintento
+
                 if (storyMode) {
                     boolean ganoJ1 = victoriasJ1 > victoriasJ2;
                     if (ganoJ1) {
                         if (nivelesHistoria != null && indiceNivel + 1 < nivelesHistoria.length) {
-                            // Aviso de desbloqueo de personaje al completar el nivel
+
                             try {
-                                String unlocked = nombreDisplayDesdeId(nivelesHistoria[indiceNivel].oponenteId);
+                              String unlocked = nombreDisplayDesdeId(nivelesHistoria[indiceNivel].getOponenteId());
                                 mostrarAlertaHistoriaPixel(
                                         "¡Nuevo personaje desbloqueado: " + unlocked + "!",
                                         "Historia",
@@ -600,7 +577,7 @@ public class Juego extends JPanel implements ActionListener {
                                         javax.swing.JOptionPane.INFORMATION_MESSAGE
                                 );
                             } catch (Exception ignored) {}
-                            // Ganó y hay siguiente nivel: preguntar
+
                             int opt = mostrarAlertaHistoriaPixel(
                                     "¡Nivel superado! ¿Qué deseas hacer?",
                                     "Historia",
@@ -615,26 +592,26 @@ public class Juego extends JPanel implements ActionListener {
                             }
                             ventana.dispose();
                             if (opt == 0) {
-                                // Ir a selección del siguiente nivel
+
                                 Main.setHistoriaNivelActual(indiceNivel + 1);
                                 Main.guardarProgresoHistoria();
                                 Main.mostrarMenuYArrancar(true);
                             } else {
-                                // Volver al menú inicial PERO conservar el progreso del nivel superado
+
                                 Main.setHistoriaNivelActual(indiceNivel + 1);
                                 Main.guardarProgresoHistoria();
                                 Main.mostrarPreMenu();
                             }
                             return;
                         } else {
-                            // Fin de la historia: cinemática final y pantalla negra con opciones
+
                             try {
                                 String[] textosFin = new String[]{
                                         "HAS LIBERADO EL MULTIVERSO.",
                                         "GRACIAS POR JUGAR."
                                 };
                                 CinematicManager.mostrarCinematicasBlocking(textosFin);
-                                // Registrar tiempo de campaña y mostrar pantalla negra con opciones
+
                                 Main.finalizarCampaniaYRegistrarTiempo();
                                 int opt = mostrarPantallaFinalNegraHistoria();
                                 jugador1.stopAllAudio();
@@ -644,14 +621,14 @@ public class Juego extends JPanel implements ActionListener {
                                 }
                                 ventana.dispose();
                                 if (opt == 0) {
-                                    // Reiniciar campaña: vaciar nombre, resetear progreso y solicitar nombre antes de la intro
+
                                     Main.setHistoriaNombreCampana("");
                                     Main.setHistoriaNivelActual(0);
                                     Main.guardarProgresoHistoria();
                                     Main.reiniciarTemporizadorHistoria();
                                     Main.mostrarIntroHistoria();
                                 } else {
-                                    // Menú principal tras finalizar: vaciar nombre y resetear progreso para que al entrar se solicite y arranque desde el inicio
+
                                     Main.setHistoriaNombreCampana("");
                                     Main.setHistoriaNivelActual(0);
                                     Main.guardarProgresoHistoria();
@@ -672,7 +649,7 @@ public class Juego extends JPanel implements ActionListener {
                             return;
                         }
                     } else {
-                        // Derrota en historia: permitir reintento o volver al inicio
+
                         int opt = mostrarAlertaHistoriaPixel(
                                 "Has sido derrotado. ¿Reintentar este nivel?",
                                 "Historia",
@@ -695,12 +672,12 @@ public class Juego extends JPanel implements ActionListener {
                         return;
                     }
                 }
-                // PvP clásico: detener loop y mostrar botones de post-partida
+
         timer.stop();
                 botonReiniciar = new JButton("REINICIAR");
                 botonReiniciar.setFocusable(false);
                 botonReiniciar.setBounds(getWidth()/2 - 75, getHeight()/2 + 50, 150, 50);
-                // estilo pixel
+
                 botonReiniciar.setBackground(new Color(10,10,10));
                 botonReiniciar.setForeground(new Color(170,0,0));
                 botonReiniciar.setFont(new Font("Courier New", Font.BOLD, 18));
@@ -711,12 +688,11 @@ public class Juego extends JPanel implements ActionListener {
                 botonReiniciar.addActionListener(ae -> reiniciarJuego());
                 this.add(botonReiniciar);
                 botonReiniciar.setVisible(true);
-                
-                // Crear botón para cambiar personajes
+
                 botonCambiar = new JButton("CAMBIAR PERSONAJES");
                 botonCambiar.setFocusable(false);
                 botonCambiar.setBounds(getWidth()/2 - 125, getHeight()/2 + 110, 250, 45);
-                // estilo pixel
+
                 botonCambiar.setBackground(new Color(10,10,10));
                 botonCambiar.setForeground(new Color(170,0,0));
                 botonCambiar.setFont(new Font("Courier New", Font.BOLD, 16));
@@ -725,11 +701,11 @@ public class Juego extends JPanel implements ActionListener {
                     javax.swing.BorderFactory.createLineBorder(new Color(10,10,10), 3)
                 ));
                 botonCambiar.addActionListener(ae -> { 
-                    // Detener audios loop (p.ej. respiración) antes de salir
+
                     jugador1.stopAllAudio();
                     jugador2.stopAllAudio();
                     ventana.dispose();
-                    // Redirigir al menú de selección Versus directamente
+
                     Main.mostrarMenuYArrancar(false);
                 });
                 this.add(botonCambiar);
@@ -740,43 +716,61 @@ public class Juego extends JPanel implements ActionListener {
         }
         if (enPausa) {
             repaint();
-            return; // no actualizar lÃ³gica del juego mientras estÃ¡ en pausa
+            return;
         }
 		
             if (enCuentaRegresiva) {
-                contadorFrames++;
-                if (contadorFrames >= 30) { // medio segundo entre 3,2,1,FIGHT
-                    contadorFrames = 0;
-                    contadorRegresivo--;
-                }
-                // Secuenciar audio de comienzo de J2 tras delay dinámico
-                if (inicioAudioJ2Pendiente) {
-                    framesDelayAudioJ2++;
-                    if (framesDelayAudioJ2 >= delayAudioJ2Frames) {
+
+                if (!introJ1Terminada) {
+
+                    if (framesEsperaIntroJ1 > 0) {
+                        framesEsperaIntroJ1--;
+                    } else {
+                        introJ1Terminada = true;
+
                         jugador2.onCountdownStart();
-                        inicioAudioJ2Pendiente = false;
+                        try {
+                            int audioFramesJ2 = (int) Math.ceil(jugador2.getInicioAudioLengthMicros() / 16000.0);
+                            framesDelayAudioJ2 = Math.min(Math.max(audioFramesJ2, 90), 240);
+                        } catch (Exception ignored) { framesDelayAudioJ2 = 120; }
+                        System.out.println("[INTRO] J1 terminada, iniciando J2. Frames espera J2: " + framesDelayAudioJ2);
+                    }
+                } else if (!introJ2Terminada) {
+
+                    if (framesDelayAudioJ2 > 0) {
+                        framesDelayAudioJ2--;
+                    } else {
+                        introJ2Terminada = true;
+                        System.out.println("[INTRO] J2 terminada, iniciando cuenta regresiva");
+                    }
+                } else {
+
+                    contadorFrames++;
+                    if (contadorFrames >= 30) {
+                        contadorFrames = 0;
+                        contadorRegresivo--;
+                    }
+                    if (contadorRegresivo < 0) {
+                        enCuentaRegresiva = false;
+                        jugador1.onFightStart();
+                        jugador2.onFightStart();
+
+                        SwingUtilities.invokeLater(() -> {
+                            try {
+                                this.setFocusable(true);
+                                this.requestFocusInWindow();
+                                if (ventana != null) ventana.requestFocus();
+                            } catch (Exception ignored) {}
+                        });
+                        System.out.println("[FIGHT] Cuenta regresiva terminada. Combate iniciado.");
                     }
                 }
-                if (contadorRegresivo < 0) {
-                    enCuentaRegresiva = false; // iniciar el combate
-                    jugador1.onFightStart();
-                    jugador2.onFightStart();
-                    // recuperar foco para asegurar entrada de teclado
-                    SwingUtilities.invokeLater(() -> {
-                        try {
-                            this.setFocusable(true);
-                            this.requestFocusInWindow();
-                            if (ventana != null) ventana.requestFocus();
-                        } catch (Exception ignored) {}
-                    });
-                    System.out.println("[FIGHT] Cuenta regresiva terminada. Combate iniciado.");
-                }
                 repaint();
-                return; // no actualizar jugadores hasta que termine la cuenta regresiva
+                return;
             }
-        // Cronómetro de partida usando tiempo real (aprox.)
+
         if (!juegoTerminado) {
-            // Acumular 16ms por tick del Timer (ajustable si cambias delay)
+
             cronometroAcumuladoNanos += 16_000_000L;
             while (cronometroAcumuladoNanos >= 1_000_000_000L) {
                 cronometroAcumuladoNanos -= 1_000_000_000L;
@@ -789,7 +783,6 @@ public class Juego extends JPanel implements ActionListener {
             }
         }
 
-        // Entrada: congelar en desempate, sino procesar normalmente
         if (tiempoAgotado || enCuentaRegresiva) {
             jugador1.congelar();
             jugador2.congelar();
@@ -799,25 +792,25 @@ public class Juego extends JPanel implements ActionListener {
                 System.out.println("[INPUT] Congelado por cuenta regresiva en curso. contador=" + contadorRegresivo);
             }
         } else {
-            // Activación de selección J1 (F) si el personaje es Ash
+
             if (input.fPulse && "Ash".equals(jugador1.getPersonajeId()) && !seleccionActivaJ1 && !ashSaliendoJ1 && !pokemonActivoJ1) {
                 seleccionActivaJ1 = true;
-                seleccionIndexJ1 = 0; // Charizard por defecto
+                seleccionIndexJ1 = 0;
                 seleccionPokemonJ1 = "Charizard";
                 input.fPulse = false;
             }
-            // Activación de selección J2 (L) si el personaje es Ash
+
             if (input.lPulse && "Ash".equals(jugador2.getPersonajeId()) && !seleccionActivaJ2 && !ashSaliendoJ2 && !pokemonActivoJ2) {
                 seleccionActivaJ2 = true;
-                seleccionIndexJ2 = 0; // Charizard por defecto
+                seleccionIndexJ2 = 0;
                 seleccionPokemonJ2 = "Charizard";
                 input.lPulse = false;
             }
-            // Procesar selección activa: congelar ambos y navegar/confirmar
+
         if (seleccionActivaJ1) {
             jugador1.congelar();
             jugador2.congelar();
-            // Invertir navegación: A desplaza a la izquierda visualmente, D a la derecha
+
             if (input.navIzqPulse) {
                 int orig = seleccionIndexJ1;
                 do { seleccionIndexJ1 = (seleccionIndexJ1 + 1) % 3; }
@@ -830,7 +823,7 @@ public class Juego extends JPanel implements ActionListener {
                 while (((seleccionIndexJ1==0 && muertoC) || (seleccionIndexJ1==1 && muertoG) || (seleccionIndexJ1==2 && muertoP)) && seleccionIndexJ1 != orig);
                 input.navDerPulse = false;
             }
-            // Cancelar selección y volver al estado inicial
+
             if (input.ePulse) {
                 seleccionActivaJ1 = false;
                 seleccionPokemonJ1 = null;
@@ -839,13 +832,13 @@ public class Juego extends JPanel implements ActionListener {
             seleccionPokemonJ1 = seleccionIndexJ1 == 0 ? "Charizard" : (seleccionIndexJ1 == 1 ? "Greninja" : "Pikachu");
             if (input.ataque1Pulse) {
                 input.ataque1Pulse = false;
-                // Confirmar sólo si el Pokémon seleccionado no está muerto
+
                 boolean selMuerto = (seleccionIndexJ1==0 && muertoC) || (seleccionIndexJ1==1 && muertoG) || (seleccionIndexJ1==2 && muertoP);
                 if (!selMuerto) {
                     seleccionActivaJ1 = false;
-                    // Mostrar derrota de Ash sin audio para animar su salida
+
                     jugador1.onGameOver(false);
-                    // permitir salida fuera de límites
+
                     jugador1.setIgnorarLimitesHorizontales(true);
                     ashSaliendoJ1 = true; dirSalidaAshJ1 = -1;
                 }
@@ -854,7 +847,7 @@ public class Juego extends JPanel implements ActionListener {
         if (seleccionActivaJ2) {
             jugador1.congelar();
             jugador2.congelar();
-            // Navegación con flechas para J2
+
             if (input.navIzq2Pulse) {
                 int orig2 = seleccionIndexJ2;
                 do { seleccionIndexJ2 = (seleccionIndexJ2 + 1) % 3; }
@@ -873,14 +866,14 @@ public class Juego extends JPanel implements ActionListener {
                 boolean selMuerto2 = (seleccionIndexJ2==0 && muertoC) || (seleccionIndexJ2==1 && muertoG) || (seleccionIndexJ2==2 && muertoP);
                 if (!selMuerto2) {
                     seleccionActivaJ2 = false;
-                    // Mostrar derrota de Ash sin audio para animar su salida
+
                     jugador2.onGameOver(false);
                     jugador2.setIgnorarLimitesHorizontales(true);
                     ashSaliendoJ2 = true; dirSalidaAshJ2 = 1;
                 }
             }
         }
-        // Movimiento de salida de Ash (KO animado fuera de pantalla)
+
         if (ashSaliendoJ1) {
             jugador1.setX(jugador1.getX() + dirSalidaAshJ1 * 8);
             if (jugador1.getX() < -200) {
@@ -889,9 +882,9 @@ public class Juego extends JPanel implements ActionListener {
                 aplicarPersonaje(jugador1, seleccionPokemonJ1);
                 jugador1.setX(100);
                 pokemonActivoJ1 = true;
-                pokemonVidaJ1 = 200;
+                pokemonVidaJ1 = 25;
                 jugador1.resetParaNuevaRonda();
-                // Reproducir el audio de comienzo del Pokémon invocado
+
                 jugador1.onCountdownStart();
             }
         }
@@ -903,14 +896,13 @@ public class Juego extends JPanel implements ActionListener {
                 aplicarPersonaje(jugador2, seleccionPokemonJ2);
                 jugador2.setX(500);
                 pokemonActivoJ2 = true;
-                pokemonVidaJ2 = 200;
+                pokemonVidaJ2 = 25;
                 jugador2.resetParaNuevaRonda();
-                // Reproducir el audio de comienzo del Pokémon invocado
+
                 jugador2.onCountdownStart();
             }
         }
 
-            // Jugador 1
             if (!seleccionActivaJ1 && !ashSaliendoJ1 && !pokemonVolviendoJ1) {
                 if (input.izquierda1) jugador1.moverIzquierda();
                 else if (input.derecha1) jugador1.moverDerecha();
@@ -923,7 +915,6 @@ public class Juego extends JPanel implements ActionListener {
                 jugador1.setAgachado(false);
             }
 
-            // Jugador 2: manual en PvP, controlado por IA en Historia
             if (!seleccionActivaJ2 && !ashSaliendoJ2 && !pokemonVolviendoJ2) {
                 if (storyMode) {
                     if (botIA != null) botIA.actualizar(jugador2, jugador1);
@@ -941,25 +932,24 @@ public class Juego extends JPanel implements ActionListener {
                 jugador2.setAgachado(false);
             }
         }
-        // Actualización de estado física/animación (una vez por frame)
+
         jugador1.actualizar();
         jugador2.actualizar();
 
         if (!juegoTerminado) {
-            
-            // Agotamiento del tiempo: drenar vida de ambos hasta que alguno llegue a 0
+
             if (tiempoAgotado) {
                 jugador1.recibirDano(drainRatePorFrame);
                 jugador2.recibirDano(drainRatePorFrame);
             }
-            
-            // Detectar colisiones y ataques (solo si no hay desempate)
+
         if (!tiempoAgotado && !enCuentaRegresiva) {
             if (jugador1.atacando && !jugador1.haGolpeado() && jugador1.getBounds().intersects(jugador2.getBounds())) {
                 boolean invulBoss = storyMode && bossFinalActivo && bossInvulFrames > 0;
-                if (!invulBoss) {
+                boolean esquivandoAgachado = jugador2.isAgachado();
+                if (!invulBoss && !esquivandoAgachado) {
                     if (pokemonActivoJ2) {
-                        pokemonVidaJ2 = Math.max(0, pokemonVidaJ2 - 9);
+                        pokemonVidaJ2 = Math.max(0, pokemonVidaJ2 - 5);
                     } else {
                         jugador2.recibirDano(9);
                     }
@@ -969,32 +959,36 @@ public class Juego extends JPanel implements ActionListener {
             if (jugador2.atacando && !jugador2.haGolpeado() && jugador2.getBounds().intersects(jugador1.getBounds())) {
                 int dano = 9;
                 if (storyMode && bossFinalActivo && jugador2.getVida() <= (jugador2.getVidaMax() * 0.10)) {
-                    // One-shot cuando el jefe <=10% de su vida
+
                     dano = jugador1.getVida();
                 }
-                if (pokemonActivoJ1) {
-                    pokemonVidaJ1 = Math.max(0, pokemonVidaJ1 - dano);
-                } else {
-                    jugador1.recibirDano(dano);
+                boolean esquivandoAgachado = jugador1.isAgachado();
+                if (!esquivandoAgachado) {
+                    if (pokemonActivoJ1) {
+                        int danoP = (dano == jugador1.getVida()) ? pokemonVidaJ1 : 5;
+                        pokemonVidaJ1 = Math.max(0, pokemonVidaJ1 - danoP);
+                    } else {
+                        jugador1.recibirDano(dano);
+                    }
                 }
                 jugador2.marcarGolpeado();
             }
         }
         }
-        // KO del pokémon J1 y regreso a Ash sin terminar ronda
+
         if (pokemonActivoJ1 && pokemonVidaJ1 <= 0 && !pokemonVolviendoJ1) {
             jugador1.onGameOver(true);
-            // Marcar al seleccionado como muerto para el menú
+
             if ("Charizard".equals(seleccionPokemonJ1)) muertoC = true;
             else if ("Greninja".equals(seleccionPokemonJ1)) muertoG = true;
             else if ("Pikachu".equals(seleccionPokemonJ1)) muertoP = true;
             pokemonVolviendoJ1 = true;
             dirSalidaAshJ1 = -1;
-            // iniciar efecto de shrink y permitir salida
+
             jugador1.setIgnorarLimitesHorizontales(true);
             shrinkAlturaJ1 = 300;
             jugador1.setAlturaVisualOverride(shrinkAlturaJ1);
-            // Calcular espera según duración del audio de GameOver del Pokémon
+
             try {
                 int audioFramesKO = (int) Math.ceil(jugador1.getGameOverAudioLengthMicros() / 16000.0);
                 esperaAudioPokemonKOJ1 = Math.min(Math.max(audioFramesKO, 90), 240);
@@ -1002,25 +996,31 @@ public class Juego extends JPanel implements ActionListener {
         }
         if (pokemonVolviendoJ1) {
             jugador1.setX(jugador1.getX() + dirSalidaAshJ1 * 8);
-            // reducir altura visual progresivamente simulando regreso a pokebola
-            shrinkAlturaJ1 = Math.max(0, shrinkAlturaJ1 - 6);
-            jugador1.setAlturaVisualOverride(shrinkAlturaJ1);
             if (esperaAudioPokemonKOJ1 > 0) esperaAudioPokemonKOJ1--;
             if (jugador1.getX() < -200 && esperaAudioPokemonKOJ1 <= 0) {
                 pokemonVolviendoJ1 = false;
                 pokemonActivoJ1 = false;
                 aplicarPersonaje(jugador1, "Ash");
-                jugador1.setX(100);
-                // Al volver Ash, no reproducir Game Over. Dejarlo en idle y retomar loop.
+                jugador1.setX(-200);
+
                 jugador1.forceIdle();
                 jugador1.onFightStart();
                 jugador1.clearAlturaVisualOverride();
                 jugador1.setIgnorarLimitesHorizontales(false);
                 shrinkAlturaJ1 = 300;
+
+                ashRegresandoJ1 = true;
             }
         }
 
-        // KO del pokémon J2 y regreso a Ash sin terminar ronda
+        if (ashRegresandoJ1) {
+            jugador1.setX(jugador1.getX() + 8);
+            if (jugador1.getX() >= 100) {
+                jugador1.setX(100);
+                ashRegresandoJ1 = false;
+            }
+        }
+
         if (pokemonActivoJ2 && pokemonVidaJ2 <= 0 && !pokemonVolviendoJ2) {
             jugador2.onGameOver(true);
             if ("Charizard".equals(seleccionPokemonJ2)) muertoC = true;
@@ -1038,23 +1038,30 @@ public class Juego extends JPanel implements ActionListener {
         }
         if (pokemonVolviendoJ2) {
             jugador2.setX(jugador2.getX() + dirSalidaAshJ2 * 8);
-            shrinkAlturaJ2 = Math.max(0, shrinkAlturaJ2 - 6);
-            jugador2.setAlturaVisualOverride(shrinkAlturaJ2);
             if (esperaAudioPokemonKOJ2 > 0) esperaAudioPokemonKOJ2--;
             if (jugador2.getX() > baseWidth + 200 - jugador2.getBounds().width && esperaAudioPokemonKOJ2 <= 0) {
                 pokemonVolviendoJ2 = false;
                 pokemonActivoJ2 = false;
                 aplicarPersonaje(jugador2, "Ash");
-                jugador2.setX(500);
+                jugador2.setX(baseWidth + 200);
                 jugador2.forceIdle();
                 jugador2.onFightStart();
                 jugador2.clearAlturaVisualOverride();
                 jugador2.setIgnorarLimitesHorizontales(false);
                 shrinkAlturaJ2 = 300;
+
+                ashRegresandoJ2 = true;
             }
         }
 
-     // detección de vida (fin de ronda y mejor de 3)
+        if (ashRegresandoJ2) {
+            jugador2.setX(jugador2.getX() - 8);
+            if (jugador2.getX() <= 500) {
+                jugador2.setX(500);
+                ashRegresandoJ2 = false;
+            }
+        }
+
         if (jugador1.getVida() <= 0 || jugador2.getVida() <= 0) {
             boolean empate = jugador1.getVida() <= 0 && jugador2.getVida() <= 0;
             if (empate) {
@@ -1072,7 +1079,7 @@ public class Juego extends JPanel implements ActionListener {
 
             if (finMatch) {
                 juegoTerminado = true;
-                // Mensaje final de campeón
+
                 if (victoriasJ1 > victoriasJ2) {
                     mensajeVictoria = jugador1.getNombre() + " CAMPEON!";
                 } else if (victoriasJ2 > victoriasJ1) {
@@ -1080,7 +1087,7 @@ public class Juego extends JPanel implements ActionListener {
                 } else {
                     mensajeVictoria = "EMPATE FINAL!";
                 }
-                // Reproducir Game_Over del derrotado y dejar ganador en idle
+
                 if (empate) {
                     jugador1.onGameOver();
                     jugador2.onGameOver();
@@ -1098,11 +1105,11 @@ public class Juego extends JPanel implements ActionListener {
                     j2Derrotado ? jugador2.getGameOverAudioLengthMicros() : 0L
                 );
                 int audioFrames = (int) Math.ceil(derrotadoMicros / 16000.0);
-                // Limitar espera post-match para evitar bloqueos prolongados
+
                 framesEsperaPostMatch = Math.min(Math.max(audioFrames, 180), 300);
                 enEsperaPostMatch = true;
             } else {
-                // Fin de ronda sin terminar match
+
                 if (empate) {
                     jugador1.onGameOver();
                     jugador2.onGameOver();
@@ -1120,7 +1127,7 @@ public class Juego extends JPanel implements ActionListener {
                     j2Derrotado ? jugador2.getGameOverAudioLengthMicros() : 0L
                 );
                 int audioFrames = (int) Math.ceil(derrotadoMicros / 16000.0);
-                // Limitar espera post-ronda para una transición más ágil
+
                 framesEsperaPostRonda = Math.min(Math.max(audioFrames, 120), 240);
                 enEsperaPostRonda = true;
                 System.out.println("[Ronda] Derrota= " + (j1Derrotado ? "J1" : j2Derrotado ? "J2" : "Empate") +
@@ -1136,7 +1143,6 @@ public class Juego extends JPanel implements ActionListener {
         }
     }
 
-    // Diálogo con estilo pixel para opciones de historia (bloqueante)
     private int mostrarAlertaHistoriaPixel(String mensaje, String titulo, String[] opciones, String defaultOption, int messageType) {
         JDialog dialog = new JDialog(ventana, titulo, true);
         dialog.setUndecorated(true);
@@ -1144,7 +1150,6 @@ public class Juego extends JPanel implements ActionListener {
         dialog.setSize(600, 260);
         dialog.setLocationRelativeTo(ventana);
 
-        Color PIXEL_BLACK = new Color(10, 10, 10);
         Color PIXEL_RED = new Color(170, 0, 0);
         Color PIXEL_RED_DARK = new Color(120, 0, 0);
 
@@ -1186,8 +1191,7 @@ public class Juego extends JPanel implements ActionListener {
         dialog.setVisible(true);
         return result[0] < 0 ? 0 : result[0];
     }
-    
-    // Pantalla final negra con mensaje y opciones (bloqueante)
+
     private int mostrarPantallaFinalNegraHistoria() {
         javax.swing.JDialog dialog = new javax.swing.JDialog(ventana, true);
         dialog.setUndecorated(true);
@@ -1244,7 +1248,7 @@ public class Juego extends JPanel implements ActionListener {
     
 
     private void reiniciarJuego() {
-        // Reset jugadores
+
         jugador1.setVida(jugador1.getVidaMax());
         jugador2.setVida(jugador2.getVidaMax());
         jugador1.setX(100);
@@ -1254,29 +1258,26 @@ public class Juego extends JPanel implements ActionListener {
         jugador2.stopAllAudio();
 
         juegoTerminado = false;
-        juegoIniciado = false;
-        contadorInicio = 3;
         enCuentaRegresiva = true;
         contadorRegresivo = 3;
         contadorFrames = 0;
         segundosRestantes = obtenerSegundosIniciales();
-        framesTimer = 0;
         cronometroAcumuladoNanos = 0L;
         tiempoAgotado = false;
         mensajeVictoria = "";
-        enPausa = false; // aseguramos reanudar el juego
+        enPausa = false;
         victoriasJ1 = 0;
         victoriasJ2 = 0;
-        // audio/animación de inicio
-        inicioAudioLanzado = false;
-        jugador1.onCountdownStart();
-        inicioAudioJ2Pendiente = true; framesDelayAudioJ2 = 0;
-        int framesIntroJ1 = (int) Math.ceil(jugador1.getInicioAudioLengthMicros() / 16000.0);
-        // Asegurar que el audio de inicio de J2 ocurra dentro de la cuenta regresiva
-        delayAudioJ2Frames = Math.min(Math.max(framesIntroJ1 + 10, FRAMES_ESPERA_AUDIO_J2), 100);
-        System.out.println("[DEBUG] delayAudioJ2Frames reinicio=" + delayAudioJ2Frames);
 
-        // Quitar botones
+        introJ1Terminada = false;
+        introJ2Terminada = false;
+        jugador1.onCountdownStart();
+        try {
+            int framesIntroJ1 = (int) Math.ceil(jugador1.getInicioAudioLengthMicros() / 16000.0);
+            framesEsperaIntroJ1 = Math.min(Math.max(framesIntroJ1, 90), 240);
+        } catch (Exception ignored) { framesEsperaIntroJ1 = 120; }
+        System.out.println("[DEBUG] framesEsperaIntroJ1 reinicio=" + framesEsperaIntroJ1);
+
         if (botonReiniciar != null) {
             botonReiniciar.setVisible(false);
             this.remove(botonReiniciar);
@@ -1286,10 +1287,8 @@ public class Juego extends JPanel implements ActionListener {
             this.remove(botonCambiar);
         }
 
-        // Reiniciar timer principal
         timer.start();
 
-        // Recuperar foco para que el input funcione
         this.setFocusable(true);
         this.requestFocusInWindow();
         ventana.requestFocus();
@@ -1302,31 +1301,31 @@ public class Juego extends JPanel implements ActionListener {
         jugador2.setVida(jugador2.getVidaMax());
         jugador1.setX(100);
         jugador2.setX(500);
-        // Reset por ronda para evitar audio doble y asegurar animación idle
+
         jugador1.resetParaNuevaRonda();
         jugador2.resetParaNuevaRonda();
-        // reset estados de ronda
+
         tiempoAgotado = false;
         segundosRestantes = obtenerSegundosIniciales();
-        framesTimer = 0;
         cronometroAcumuladoNanos = 0L;
         enCuentaRegresiva = true;
         contadorRegresivo = 3;
         contadorFrames = 0;
         mensajeVictoria = "";
-        // audio/animación de inicio de ronda: primero J1, luego J2 con delay
-        inicioAudioJ2Pendiente = true;
-        framesDelayAudioJ2 = 0;
+
+        introJ1Terminada = false;
+        introJ2Terminada = false;
         jugador1.onCountdownStart();
-        int framesIntroJ1b = (int) Math.ceil(jugador1.getInicioAudioLengthMicros() / 16000.0);
-        delayAudioJ2Frames = Math.min(Math.max(framesIntroJ1b + 10, FRAMES_ESPERA_AUDIO_J2), 100);
-        System.out.println("[DEBUG] delayAudioJ2Frames ronda=" + delayAudioJ2Frames);
-        // continuar loop
+        try {
+            int framesIntroJ1b = (int) Math.ceil(jugador1.getInicioAudioLengthMicros() / 16000.0);
+            framesEsperaIntroJ1 = Math.min(Math.max(framesIntroJ1b, 90), 240);
+        } catch (Exception ignored) { framesEsperaIntroJ1 = 120; }
+        System.out.println("[DEBUG] framesEsperaIntroJ1 ronda=" + framesEsperaIntroJ1);
+
         if (!timer.isRunning()) timer.start();
         repaint();
     }
 
-    // Conversión de id interno a nombre mostrable
     private String nombreDisplayDesdeId(String id) {
         if (id == null) return "-";
         return switch (id) {
@@ -1338,11 +1337,10 @@ public class Juego extends JPanel implements ActionListener {
         };
     }
 
-    // --- API de Modo Historia ---
     public void activarStoryMode(Level[] niveles) {
         this.storyMode = true;
         this.nivelesHistoria = niveles;
-        // Usar el progreso actual guardado desde Main, si existe
+
         try {
             this.indiceNivel = Math.max(0, Math.min(niveles != null ? niveles.length - 1 : 0, Main.getHistoriaNivelActual()));
         } catch (Exception ex) {
@@ -1353,7 +1351,7 @@ public class Juego extends JPanel implements ActionListener {
                 this.botIA = new BotIA();
             } catch (Throwable t) {
                 System.err.println("[Historia] Error creando BotIA: " + t.getMessage());
-                this.botIA = null; // Continuar sin IA para no bloquear el combate
+                this.botIA = null;
             }
         }
         System.out.println("[Historia] Activando Story Mode. indiceNivel=" + this.indiceNivel);
@@ -1366,9 +1364,9 @@ public class Juego extends JPanel implements ActionListener {
             aplicarNivelActual();
         } catch (Throwable t) {
             System.err.println("[Historia] Falló aplicar nivel actual: " + t.getMessage());
-            // Desactivar IA para evitar romper el bucle del juego
+
             this.botIA = null;
-            // Aún así inicializar HUD y cuenta regresiva segura
+
             try {
                 enCuentaRegresiva = true;
                 contadorRegresivo = 3;
@@ -1386,69 +1384,86 @@ public class Juego extends JPanel implements ActionListener {
     private void aplicarNivelActual() {
         if (nivelesHistoria == null || indiceNivel < 0 || indiceNivel >= nivelesHistoria.length) return;
         Level lvl = nivelesHistoria[indiceNivel];
-        // Fondo definido por el nivel
-        if (lvl.fondoArchivo != null && !lvl.fondoArchivo.isEmpty()) {
+
+        String fondo = lvl.getFondoArchivo();
+        if (fondo != null && !fondo.isEmpty()) {
             try {
-                this.fondoSel = lvl.fondoArchivo;
-                cargarFondo(lvl.fondoArchivo);
+                this.fondoSel = fondo;
+                cargarFondo(fondo);
             } catch (Exception ex) {
                 System.err.println("[Historia] No se pudo cargar fondo: " + ex.getMessage());
             }
         }
-        // Oponente
+
         try {
-            aplicarPersonaje(jugador2, lvl.oponenteId);
-            System.out.println("[Historia] Nivel aplicado: fondo=" + lvl.fondoArchivo + ", J2=" + jugador2.getNombre());
+            aplicarPersonaje(jugador2, lvl.getOponenteId());
+            System.out.println("[Historia] Nivel aplicado: fondo=" + lvl.getFondoArchivo() + ", J2=" + jugador2.getNombre());
         } catch (Exception ex) {
             System.err.println("[Historia] No se pudo aplicar oponente: " + ex.getMessage());
         }
-        // Vida máxima y reglas de jefe final
-        bossFinalActivo = lvl.esFinalBoss && !Main.MODO_TEST_BOSS_SUAVE;
-        try { jugador1.setVidaMax(100); } catch (Exception ignored) {}
-        try { jugador2.setVidaMax(bossFinalActivo ? 500 : 100); } catch (Exception ignored) {}
+
+        bossFinalActivo = lvl.isEsFinalBoss();
+        if (!bossFinalActivo) {
+            try { jugador1.setVidaMax(100); } catch (Exception ignored) {}
+        }
+
+        int vidaJ2 = bossFinalActivo ? 500 : 100;
+        String personajeJ2 = jugador2.getPersonajeId();
+        if ("Charizard".equals(personajeJ2) || "Greninja".equals(personajeJ2) || "Pikachu".equals(personajeJ2)) {
+            vidaJ2 = 25;
+        } else if ("Ash".equals(personajeJ2)) {
+
+            vidaJ2 = bossFinalActivo ? 500 : 100;
+        }
+        try { jugador2.setVidaMax(vidaJ2); } catch (Exception ignored) {}
+
+        String personajeJ1 = jugador1.getPersonajeId();
+        if ("Charizard".equals(personajeJ1) || "Greninja".equals(personajeJ1) || "Pikachu".equals(personajeJ1)) {
+            try { jugador1.setVidaMax(25); } catch (Exception ignored) {}
+        } else if ("Ash".equals(personajeJ1)) {
+
+            try { jugador1.setVidaMax(100); } catch (Exception ignored) {}
+        }
+        
         jugador1.setVida(jugador1.getVidaMax());
         jugador2.setVida(jugador2.getVidaMax());
         bossCycleFrames = 0;
         bossInvulFrames = 0;
-        // Configuración de IA
+
         if (botIA != null) {
             try {
-                botIA.setNivel(lvl.dificultadIA);
-                botIA.setOverrides(lvl.overrideRangoAtaque, lvl.overrideVelAcercamiento, lvl.overrideCooldownAtaque,
-                        lvl.overrideProbSalto, lvl.overrideProbAgachar, lvl.overrideDistEvadir, lvl.overrideAgresividad);
+                botIA.setNivel(lvl.getDificultadIA());
+                botIA.setOverrides(lvl.getOverrideRangoAtaque(), lvl.getOverrideVelAcercamiento(), lvl.getOverrideCooldownAtaque(),
+                        lvl.getOverrideProbSalto(), lvl.getOverrideProbAgachar(), lvl.getOverrideDistEvadir(), lvl.getOverrideAgresividad());
             } catch (Throwable t) {
                 System.err.println("[Historia][IA] Falló configuración de IA: " + t.getMessage());
-                // Desactivar IA para no romper el combate; J2 quedará manual/inactivo según modo
+
                 botIA = null;
             }
         }
-        // HUD y reloj
+
         victoriasJ1 = 0;
         victoriasJ2 = 0;
         enCuentaRegresiva = true;
         contadorRegresivo = 3;
         contadorFrames = 0;
         segundosRestantes = obtenerSegundosIniciales();
-        framesTimer = 0;
         cronometroAcumuladoNanos = 0L;
         tiempoAgotado = false;
         mensajeVictoria = "";
-        // audio de inicio
-        inicioAudioJ2Pendiente = true;
-        framesDelayAudioJ2 = 0;
+
+        introJ1Terminada = false;
+        introJ2Terminada = false;
         try {
             jugador1.onCountdownStart();
             int framesIntroJ1 = (int) Math.ceil(jugador1.getInicioAudioLengthMicros() / 16000.0);
-            delayAudioJ2Frames = Math.min(Math.max(framesIntroJ1 + 10, FRAMES_ESPERA_AUDIO_J2), 100);
-        } catch (Exception ignored) {}
+            framesEsperaIntroJ1 = Math.min(Math.max(framesIntroJ1, 90), 240);
+        } catch (Exception ignored) { framesEsperaIntroJ1 = 120; }
         if (!timer.isRunning()) timer.start();
         repaint();
     }
 
-    /**
-     * Determina los segundos iniciales por ronda en función del oponente.
-     * Para combates contra Darth Vader se usan 150s, caso contrario 90s.
-     */
+    
     private int obtenerSegundosIniciales() {
         try {
             String oppId = (jugador2 != null) ? jugador2.getPersonajeId() : null;
@@ -1458,10 +1473,9 @@ public class Juego extends JPanel implements ActionListener {
     }
 
     private void mostrarMenuPausa() {
-        // Aplicar paleta al JOptionPane (temporal)
+
         Color PIXEL_BLACK = new Color(10,10,10);
         Color PIXEL_RED = new Color(170,0,0);
-        Color PIXEL_RED_DARK = new Color(120,0,0);
         Font PIXEL_FONT = new Font("Courier New", Font.BOLD, 14);
         Object oldBg = javax.swing.UIManager.getDefaults().get("OptionPane.background");
         Object oldPanelBg = javax.swing.UIManager.getDefaults().get("Panel.background");
@@ -1507,8 +1521,8 @@ public class Juego extends JPanel implements ActionListener {
                     try { this.requestFocusInWindow(); if (ventana != null) ventana.requestFocus(); } catch (Exception ignored) {}
                 });
             } else if (seleccion == 3) {
-                // Volver al menú principal sin cerrar la aplicación
-                // Detener timer y audios, y volver al menú
+
+
                 if (timer != null && timer.isRunning()) timer.stop();
                 jugador1.stopAllAudio();
                 jugador2.stopAllAudio();
@@ -1554,7 +1568,7 @@ public class Juego extends JPanel implements ActionListener {
             case 3 -> cambiarResolucion(1920, 1080);
             default -> {}
         }
-        // Recuperar foco tras cerrar el diÃ¡logo
+
         this.requestFocusInWindow();
         ventana.requestFocus();
     }
@@ -1573,7 +1587,6 @@ public class Juego extends JPanel implements ActionListener {
                 "- Agacharse: Flecha Abajo\n" +
                 "- Atacar: Enter";
 
-        // Controles especiales de Ash (selección de Pokémon) si está en combate
         boolean ashEnCombate =
                 (jugador1 != null && "Ash".equals(jugador1.getPersonajeId())) ||
                 (jugador2 != null && "Ash".equals(jugador2.getPersonajeId()));
@@ -1591,33 +1604,33 @@ public class Juego extends JPanel implements ActionListener {
     }
 
     private void cambiarResolucion(int w, int h) {
-        // Salir de maximizado para aplicar tamaÃ±o custom
+
         ventana.setExtendedState(JFrame.NORMAL);
         ventana.setSize(w, h);
         this.setPreferredSize(new Dimension(w, h));
         ventana.validate();
         revalidate();
         repaint();
-        // Recuperar foco para que el input funcione
+
         this.requestFocusInWindow();
         ventana.requestFocus();
     }
 
     private void cargarFondo(String archivo) {
         try {
-            // 1) Intentar por classpath
+
             java.net.URL url = getClass().getResource("/resources/BackGround/" + archivo);
             if (url != null) {
                 fondoImg = new ImageIcon(url).getImage();
                 return;
             }
-            // 2) Fallback: bin/resources
+
             java.io.File fBin = new java.io.File("bin/resources/BackGround/" + archivo);
             if (fBin.exists()) {
                 fondoImg = new ImageIcon(fBin.toURI().toURL()).getImage();
                 return;
             }
-            // 3) Fallback: src/resources
+
             java.io.File fSrc = new java.io.File("src/resources/BackGround/" + archivo);
             if (fSrc.exists()) {
                 fondoImg = new ImageIcon(fSrc.toURI().toURL()).getImage();
@@ -1635,25 +1648,28 @@ public class Juego extends JPanel implements ActionListener {
         if (pj1 != null) aplicarPersonaje(jugador1, pj1);
         if (pj2 != null) aplicarPersonaje(jugador2, pj2);
         if (fondo != null) { fondoSel = fondo; cargarFondo(fondoSel); }
-        // Resetear estados de audio/animación al seleccionar
+
         jugador1.resetParaNuevaRonda();
         jugador2.resetParaNuevaRonda();
-        // Iniciar audio secuencial: primero J1, luego J2 tras delay dinámico
-        inicioAudioJ2Pendiente = true;
-        framesDelayAudioJ2 = 0;
+
+        introJ1Terminada = false;
+        introJ2Terminada = false;
         if (jugador1 != null) {
             jugador1.onCountdownStart();
-            int framesIntroJ1 = (int) Math.ceil(jugador1.getInicioAudioLengthMicros() / 16000.0);
-            delayAudioJ2Frames = Math.min(Math.max(framesIntroJ1 + 10, FRAMES_ESPERA_AUDIO_J2), 100);
-            System.out.println("[DEBUG] delayAudioJ2Frames seleccionInicial=" + delayAudioJ2Frames);
+            try {
+                int framesIntroJ1 = (int) Math.ceil(jugador1.getInicioAudioLengthMicros() / 16000.0);
+                framesEsperaIntroJ1 = Math.min(Math.max(framesIntroJ1, 90), 240);
+            } catch (Exception ignored) { framesEsperaIntroJ1 = 120; }
+            System.out.println("[DEBUG] framesEsperaIntroJ1 seleccionInicial=" + framesEsperaIntroJ1);
         }
-        // J2 se dispara tras delayAudioJ2Frames dentro del loop
     }
 
+    @SuppressWarnings("unused")
     private void mostrarSeleccionPersonajes() {
         String[] personajes = {"Darth_Vader","Iron_Man","Mr_Increible","Pyke","Goku","Batman","Luke_Skywalker","Naruto"};
-        personajeSelJ1 = (String) JOptionPane.showInputDialog(ventana, "Jugador 1: elige personaje", "Selección J1", JOptionPane.PLAIN_MESSAGE, null, personajes, personajes[0]);
-        personajeSelJ2 = (String) JOptionPane.showInputDialog(ventana, "Jugador 2: elige personaje", "Selección J2", JOptionPane.PLAIN_MESSAGE, null, personajes, personajes[1]);
+        String personajeSelJ1 = (String) JOptionPane.showInputDialog(ventana, "Jugador 1: elige personaje", "Selección J1", JOptionPane.PLAIN_MESSAGE, null, personajes, personajes[0]);
+        String personajeSelJ2 = (String) JOptionPane.showInputDialog(ventana, "Jugador 2: elige personaje", "Selección J2", JOptionPane.PLAIN_MESSAGE, null, personajes, personajes[1]);
+        // Este método no se usa actualmente pero se mantiene para compatibilidad futura
     }
 
     private void aplicarPersonaje(Jugador jugador, String personajeId) {
@@ -1671,35 +1687,35 @@ public class Juego extends JPanel implements ActionListener {
                 idlePath = images + "ash_idle.png";
                 walkPath = images + "ash_caminar.gif";
                 crouchPath = images + "ash_agachar_saltar.png";
-                attackPath = images + "ash_atacar1.gif"; // attack 1 por defecto
+                attackPath = images + "ash_atacar1.gif";
                 hurtPath = images + "ash_daño.png";
                 koPath = images + "ash_gameOver.gif";
                 jumpPath = images + "ash_agachar_saltar.png";
-                // Audios estandarizados
+
                 derrotaFrames = 90;
-                // Comienzo y GameOver dedicados
+
                 inicio = sounds + "Ash_Comienzo.wav";
                 gameover = sounds + "Ash_GameOver.wav";
                 audioAtaque = null; audioSalto = null;
             }
             case "Charizard" -> {
-                images = "Pokemon/Charizard/";
+                images = "Pokemon/Charizard/images/";
                 sounds = "Pokemon/Charizard/sounds/";
                 idlePath = images + "charizard_idle_caminar.gif";
                 walkPath = images + "charizard_idle_caminar.gif";
-                crouchPath = images + "charizard.png"; // reutilizamos
+                crouchPath = images + "charizard.png";
                 attackPath = images + "charizard_atacar.gif";
                 hurtPath = images + "charizard_daño.png";
-                koPath = null; // no disponible
+                koPath = null;
                 jumpPath = images + "charizard.png";
                 derrotaFrames = 90;
-                // Comienzo y GameOver dedicados
+
                 inicio = sounds + "Charizard_Comienzo.wav";
                 gameover = sounds + "Charizard_GameOver.wav";
                 audioAtaque = null; audioSalto = null;
             }
             case "Greninja" -> {
-                images = "Pokemon/Greninja/";
+                images = "Pokemon/Greninja/images/";
                 sounds = "Pokemon/Greninja/sounds/";
                 idlePath = images + "greninja_idle.png";
                 walkPath = images + "greninja_caminar.gif";
@@ -1709,7 +1725,7 @@ public class Juego extends JPanel implements ActionListener {
                 koPath = null;
                 jumpPath = images + "greninja_idle.png";
                 derrotaFrames = 90;
-                // Comienzo y GameOver dedicados
+
                 inicio = sounds + "Greninja_Comienzo.wav";
                 gameover = sounds + "Greninja_GameOver.wav";
                 audioAtaque = null; audioSalto = null;
@@ -1725,7 +1741,7 @@ public class Juego extends JPanel implements ActionListener {
                 koPath = null;
                 jumpPath = images + "pikachu_idle.png";
                 derrotaFrames = 90;
-                // Audios de comienzo y gameover dedicados
+
                 inicio = sounds + "Pikachu_Comienzo.wav";
                 gameover = sounds + "Pikachu_GameOver.wav";
                 audioAtaque = null; audioSalto = null;
@@ -1733,7 +1749,7 @@ public class Juego extends JPanel implements ActionListener {
             case "Darth_Vader" -> {
                 images = "Darth_Vader/images/";
                 sounds = "Darth_Vader/sounds/";
-                // Idle dedicado disponible
+
                 idlePath = images + "dartVader_idle.png";
                 walkPath = images + "dartVader_caminar.gif";
                 crouchPath = images + "dartVader_agachar.png";
@@ -1745,7 +1761,7 @@ public class Juego extends JPanel implements ActionListener {
                 resp = sounds + "Darth_Vader_Respiracion.wav";
                 dano = sounds + "Darth_Vader_Daño.wav";
                 gameover = sounds + "Darth_Vader_GameOver.wav";
-                derrotaFrames = 140;
+                derrotaFrames = 473;
                 audioAtaque = null; audioSalto = null;
             }
             case "Iron_Man" -> {
@@ -1808,24 +1824,22 @@ public class Juego extends JPanel implements ActionListener {
                 idlePath = images + "goku_idle.png";
                 walkPath = images + "goku_caminar.gif";
                 crouchPath = images + "goku_agachar.png";
-                // Ajuste: el archivo real es goku_atacar.gif
                 attackPath = images + "goku_atacar.gif";
                 hurtPath = images + "goku_daño.png";
                 koPath = images + "goku_gameOver.gif";
                 jumpPath = images + "goku_saltar.png";
                 inicio = sounds + "goku_comienzo.wav";
                 resp = null;
-                dano = sounds + "goku_daño_salto.wav"; // daños
+                dano = sounds + "goku_daño_salto.wav";
                 gameover = sounds + "goku_gameover.wav";
-                saltoAtaque = null; // reemplazado por separados
+                saltoAtaque = null;
                 audioAtaque = sounds + "goku_ataque.wav";
-                audioSalto = sounds + "goku_daño_salto.wav"; // usar como salto
+                audioSalto = sounds + "goku_daño_salto.wav";
                 derrotaFrames = 90;
             }
             case "Batman" -> {
-                images = "Batman/";
-                sounds = "Batman/sounds/"; // carpeta de sonidos estandarizada
-                // El archivo real es "batma.idle.png" en recursos
+                images = "Batman/images/";
+                sounds = "Batman/sounds/";
                 idlePath = images + "batma.idle.png";
                 walkPath = images + "batman_caminar.gif";
                 crouchPath = images + "batman_agachar.png";
@@ -1833,7 +1847,6 @@ public class Juego extends JPanel implements ActionListener {
                 hurtPath = images + "batman_daño.png";
                 koPath = images + "batman_gameOver.gif";
                 jumpPath = images + "batman_saltar.png";
-                // Audios de comienzo y gameover dedicados
                 inicio = sounds + "Batman_Comienzo.wav"; 
                 resp = null; 
                 gameover = sounds + "Batman_GameOver.wav"; 
@@ -1842,8 +1855,8 @@ public class Juego extends JPanel implements ActionListener {
                 derrotaFrames = 90;
             }
             case "Luke_Skywalker" -> {
-                images = "Luke Skywalker/";
-                sounds = "Luke Skywalker/sounds/"; // carpeta de sonidos estandarizada
+                images = "Luke Skywalker/images/";
+                sounds = "Luke Skywalker/sounds/";
                 idlePath = images + "luke_idle.png";
                 walkPath = images + "luke_caminar.gif";
                 crouchPath = images + "luke_agachar_saltar.png";
@@ -1851,7 +1864,7 @@ public class Juego extends JPanel implements ActionListener {
                 hurtPath = images + "luke_daño.png";
                 koPath = images + "luke_gameOver.gif";
                 jumpPath = images + "luke_agachar_saltar.png";
-                // Audios de comienzo y gameover dedicados
+
                 inicio = sounds + "Luke_Comienzo.wav"; 
                 resp = null; 
                 gameover = sounds + "Luke_GameOver.wav"; 
@@ -1860,8 +1873,8 @@ public class Juego extends JPanel implements ActionListener {
                 derrotaFrames = 90;
             }
             case "Naruto" -> {
-                images = "Naruto/";
-                sounds = "Naruto/sounds/"; // carpeta de sonidos disponible
+                images = "Naruto/images/";
+                sounds = "Naruto/sounds/";
                 idlePath = images + "naruto_idle.png";
                 walkPath = images + "naruto_caminar.gif";
                 crouchPath = images + "naruto_agachar.png";
@@ -1869,7 +1882,7 @@ public class Juego extends JPanel implements ActionListener {
                 hurtPath = images + "naruto_daño.png";
                 koPath = images + "naruto_gameOver.gif";
                 jumpPath = images + "naruto_saltar.png";
-                // Audios de comienzo y gameover dedicados
+
                 inicio = sounds + "Naruto_Comienzo.wav";
                 resp = null;
                 dano = null; 
@@ -1880,19 +1893,18 @@ public class Juego extends JPanel implements ActionListener {
             }
         }
 
-        // Asignación estandarizada de audios de ataque y daño
-        // Todas las carpetas de sonidos usan los mismos nombres: "Golpe.wav" y "Daño.wav"
+
         if (sounds != null) {
             try {
                 dano = sounds + "Daño.wav";
                 audioAtaque = sounds + "Golpe.wav";
-                // Desactivar antiguos alias de salto/ataque si existían
+
                 saltoAtaque = null;
-                // Si no tenemos audio de salto estándar, mantener null
+
                 audioSalto = null;
             } catch (Exception ignored) {}
         }
-        // Debug: log de rutas y carga
+
         System.out.println("[DEBUG] Cargando personaje: " + personajeId);
         System.out.println("[DEBUG] idle: " + idlePath);
         System.out.println("[DEBUG] walk: " + walkPath);
@@ -1918,16 +1930,19 @@ public class Juego extends JPanel implements ActionListener {
         System.out.println("[DEBUG] ko loaded: " + (ko != null && ko.getImagen() != null));
         System.out.println("[DEBUG] jump loaded: " + (jump != null && jump.getImagen() != null));
 
-        // Fallback si el sprite de daño no carga: usar idle para evitar rectángulos de color
         if (hurt != null && hurt.getImagen() == null) {
             hurt = idle;
         }
         jugador.setAssets(personajeId, idle, walk, crouch, attack, hurt, ko, jump, inicio, resp, dano, gameover, saltoAtaque, audioSalto, audioAtaque);
         jugador.setDerrotaFrames(derrotaFrames);
-        // Ajustar tamaño base para que ocupen ~mitad de altura y algo más de ancho
-        jugador.setBaseSize(200, 300);
 
-        // Si es Ash, cargar sprite alterno de ataque 2
+        if ("Pikachu".equals(personajeId)) {
+            jugador.setBaseSize(100, 150);
+        } else {
+            jugador.setBaseSize(200, 300);
+        }
+
+
         if ("Ash".equals(personajeId)) {
             Sprite attack2 = new Sprite("Pokemon/Ash/images/ash_atacar2.gif");
             jugador.setAttackAlt(attack2);
@@ -1935,4 +1950,7 @@ public class Juego extends JPanel implements ActionListener {
             jugador.setAttackAlt(null);
         }
     }
+    
+    
 }
+

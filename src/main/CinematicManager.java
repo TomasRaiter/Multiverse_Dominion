@@ -7,23 +7,27 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 
-/**
- * Muestra una secuencia de cinemáticas estilo Undertale: fondo oscuro + cuadro de texto.
- */
+// Gestor de cinemáticas para mostrar secuencias de texto con fondos opcionales
+@SuppressWarnings({"serial", "this-escape"})
 public class CinematicManager extends JPanel {
-    private final String[] textos;
-    private final Image[] fondos;
-    private int index = 0;
-    private boolean terminado = false;
+    private static final long serialVersionUID = 1L;
+    
+    // Datos de la cinemática
+    private final String[] textos;      // Textos a mostrar secuencialmente
+    private final Image[] fondos;       // Fondos opcionales para cada texto
+    private int index = 0;              // Índice del texto actual
+    private boolean terminado = false;  // Estado de finalización
 
+    // Constructor simple solo con textos
     public CinematicManager(String[] textos) { this(textos, null); }
 
+    // Constructor completo con textos y fondos
     public CinematicManager(String[] textos, Image[] fondos) {
         this.textos = textos != null ? textos : new String[0];
         this.fondos = fondos;
-        setBackground(Color.BLACK);
-        setFocusable(true);
+        initializeComponent();
 
+        // Configurar eventos para avanzar la cinemática
         addMouseListener(new MouseAdapter() {
             @Override public void mouseClicked(MouseEvent e) { avanzar(); }
         });
@@ -32,6 +36,13 @@ public class CinematicManager extends JPanel {
         });
     }
 
+    // Inicializa los componentes del panel
+    private void initializeComponent() {
+        setBackground(Color.BLACK);
+        setFocusable(true);
+    }
+
+    // Avanza al siguiente texto o cierra la cinemática si terminó
     private void avanzar() {
         if (terminado) return;
         index++;
@@ -44,13 +55,14 @@ public class CinematicManager extends JPanel {
         }
     }
 
+    // Renderiza la cinemática: fondo + caja de texto + texto actual
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         int w = getWidth();
         int h = getHeight();
 
-        // Fondo: imagen si existe para este índice, si no negro
+        // Dibujar fondo (imagen o negro)
         if (fondos != null && index < fondos.length && fondos[index] != null) {
             g.drawImage(fondos[index], 0, 0, w, h, this);
         } else {
@@ -58,7 +70,7 @@ public class CinematicManager extends JPanel {
             g.fillRect(0, 0, w, h);
         }
 
-        // Cuadro de texto estilo Undertale
+        // Crear caja de texto en la parte inferior
         int boxW = (int) (w * 0.8);
         int boxH = (int) (h * 0.25);
         int bx = (w - boxW) / 2;
@@ -70,7 +82,7 @@ public class CinematicManager extends JPanel {
         g2.setColor(Color.WHITE);
         g2.drawRect(bx, by, boxW, boxH);
 
-        // Texto centrado con margen
+        // Renderizar texto actual con ajuste de líneas
         String texto = (index < textos.length) ? textos[index] : "";
         g.setColor(Color.WHITE);
         Font f = new Font("Monospaced", Font.BOLD, Math.max(18, h/36));
@@ -79,13 +91,13 @@ public class CinematicManager extends JPanel {
         int margin = 24;
         int tx = bx + margin;
         int ty = by + margin + fm.getAscent();
-        // Romper líneas si es necesario
+
         for (String linea : wrapText(texto, fm, boxW - 2*margin)) {
             g.drawString(linea, tx, ty);
             ty += fm.getHeight() + 6;
         }
 
-        // Hint para avanzar
+        // Mostrar instrucciones para continuar
         String hint = "Presiona una tecla o haz clic para continuar";
         Font fh = new Font("Monospaced", Font.PLAIN, Math.max(14, h/48));
         g.setFont(fh);
@@ -95,6 +107,7 @@ public class CinematicManager extends JPanel {
         g.drawString(hint, hx, hy);
     }
 
+    // Ajusta el texto a múltiples líneas según el ancho disponible
     private java.util.List<String> wrapText(String text, FontMetrics fm, int maxWidth) {
         java.util.List<String> lines = new java.util.ArrayList<>();
         if (text == null) return lines;
@@ -113,9 +126,8 @@ public class CinematicManager extends JPanel {
         return lines;
     }
 
-    /**
-     * Muestra las cinemáticas en pantalla completa de forma bloqueante.
-     */
+
+    // Muestra cinemáticas en pantalla completa (método estático bloqueante)
     public static void mostrarCinematicasBlocking(String[] textos) {
         JDialog d = new JDialog((Frame) null, "Cinemáticas", true);
         d.setUndecorated(true);
@@ -124,7 +136,8 @@ public class CinematicManager extends JPanel {
         CinematicManager panel = new CinematicManager(textos);
         d.setContentPane(panel);
         d.setBackground(Color.BLACK);
-        // Cerrar automáticamente cuando termine
+
+        // Timer para detectar cuando termina la cinemática
         javax.swing.Timer t = new javax.swing.Timer(150, e -> {
             if (panel.isTerminado()) { ((javax.swing.Timer)e.getSource()).stop(); d.dispose(); }
         });
@@ -134,14 +147,13 @@ public class CinematicManager extends JPanel {
         panel.requestFocusInWindow();
     }
 
-    /**
-     * Muestra cinemáticas con imágenes de fondo por slide.
-     * Cada texto se muestra sobre su imagen correspondiente.
-     */
+
+    // Muestra cinemáticas con fondos personalizados (método estático bloqueante)
     public static void mostrarCinematicasConFondosBlocking(String[] textos, String[] fondosClasspath) {
         Image[] imgs = null;
         if (fondosClasspath != null) {
             imgs = new Image[fondosClasspath.length];
+            // Cargar imágenes de fondo desde classpath o filesystem
             for (int i = 0; i < fondosClasspath.length; i++) {
                 try {
                     String path = fondosClasspath[i];
@@ -149,17 +161,13 @@ public class CinematicManager extends JPanel {
                     if (url != null) {
                         imgs[i] = new ImageIcon(url).getImage();
                     } else {
-                        java.io.File fBin = new java.io.File("bin" + path);
-                        if (fBin.exists()) {
-                            imgs[i] = new ImageIcon(fBin.toURI().toURL()).getImage();
-                        } else {
-                            java.io.File fSrc = new java.io.File("src" + path);
-                            if (fSrc.exists()) imgs[i] = new ImageIcon(fSrc.toURI().toURL()).getImage();
-                        }
+                        java.io.File fSrc = new java.io.File("src" + path);
+                        if (fSrc.exists()) imgs[i] = new ImageIcon(fSrc.toURI().toURL()).getImage();
                     }
                 } catch (Exception ignored) {}
             }
         }
+        // Crear diálogo en pantalla completa
         JDialog d = new JDialog((Frame) null, "Cinemáticas", true);
         d.setUndecorated(true);
         Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
@@ -167,6 +175,7 @@ public class CinematicManager extends JPanel {
         CinematicManager panel = new CinematicManager(textos, imgs);
         d.setContentPane(panel);
         d.setBackground(Color.BLACK);
+        // Timer para detectar finalización
         javax.swing.Timer t = new javax.swing.Timer(150, e -> {
             if (panel.isTerminado()) { ((javax.swing.Timer)e.getSource()).stop(); d.dispose(); }
         });
@@ -176,5 +185,6 @@ public class CinematicManager extends JPanel {
         panel.requestFocusInWindow();
     }
 
+    // Getter para verificar si la cinemática ha terminado
     public boolean isTerminado() { return terminado; }
 }

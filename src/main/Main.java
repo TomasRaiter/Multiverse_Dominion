@@ -5,14 +5,18 @@ import java.awt.*;
 import java.awt.event.ItemEvent;
 import java.util.prefs.Preferences;
 
-// Clase para panel con imagen de fondo
+// panel personalizado con imagen de fondo
+@SuppressWarnings("serial")
 class BackgroundPanel extends JPanel {
-    private Image backgroundImage;
+    private static final long serialVersionUID = 1L;
+    private Image backgroundImage;  // imagen de fondo del panel
     
+    // constructor con imagen de fondo
     public BackgroundPanel(Image backgroundImage) {
         this.backgroundImage = backgroundImage;
     }
     
+    // renderiza la imagen de fondo escalada al tamano del panel
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
@@ -21,32 +25,34 @@ class BackgroundPanel extends JPanel {
         }
     }
     
+    // cambia la imagen de fondo y repinta el panel
     public void setBackgroundImage(Image img) {
         this.backgroundImage = img;
         repaint();
     }
 }
 
+// clase principal del juego - maneja menus y configuracion
 public class Main {
-    // Nivel actual del Modo Historia (0-based)
-    private static int historiaNivelActual = 0;
-    // Temporizador de campaña y mejores tiempos
-    private static long historiaStartMillis = -1L;
-    // Nombre de la campaña para asociar al Top
-    private static String historiaNombreCampana = "";
+    // variables del modo historia
+    private static int historiaNivelActual = 0;        // nivel actual en modo historia
+    private static long historiaStartMillis = -1L;     // tiempo de inicio de campana
+    private static String historiaNombreCampana = "";  // nombre del jugador en campana
+    
+    // configuracion de testing
     public static final boolean MODO_TEST_BOSS_SUAVE = false;
+    // punto de entrada principal del programa
     public static void main(String[] args) {
         SwingUtilities.invokeLater(Main::mostrarPreMenu);
     }
 
-    // Pre-menú para seleccionar modo Historia o PvP antes de elegir personajes
+    // muestra el menu principal con opciones historia, top 3, versus y salir
     public static void mostrarPreMenu() {
-        // Paleta pixel rojo/negro
-        Color PIXEL_BLACK = new Color(10, 10, 10);
+        // colores del tema pixel art
         Color PIXEL_RED = new Color(170, 0, 0);
         Color PIXEL_RED_DARK = new Color(120, 0, 0);
-        Font PIXEL_FONT = new Font("Courier New", Font.BOLD, 18);
 
+        // crear ventana principal en pantalla completa
         JFrame frame = new JFrame("Selecciona el modo");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLayout(new BorderLayout(10, 10));
@@ -57,11 +63,12 @@ public class Main {
         panel.setLayout(new GridBagLayout());
         frame.setContentPane(panel);
 
-        // Título
+        // crear titulo del juego
         JLabel titulo = new JLabel("Multiverse Dominion", SwingConstants.CENTER);
         titulo.setForeground(PIXEL_RED);
         titulo.setFont(new Font("Courier New", Font.BOLD, 42));
 
+        // crear botones del menu principal
         JButton btnHistoria = new JButton("Historia");
         JButton btnTop3 = new JButton("Top 3");
         JButton btnPvP = new JButton("Versus");
@@ -86,26 +93,27 @@ public class Main {
         gbc.gridy = 3; panel.add(btnPvP, gbc);
         gbc.gridy = 4; panel.add(btnSalir, gbc);
 
-        // Fondo del premenú (si existe)
         ImageIcon fondoIntro = cargarIcono("/resources/Intro/intro.png", 1920, 1080);
         if (fondoIntro != null) {
             panel.setBackgroundImage(fondoIntro.getImage());
         } else {
-            // Fallback: usar un fondo conocido
+
             ImageIcon fondoBG = cargarIcono("/resources/BackGround/aguasEstancadas.png", 1920, 1080);
             if (fondoBG != null) panel.setBackgroundImage(fondoBG.getImage());
         }
 
+        
+        // configurar accion del boton historia
         btnHistoria.addActionListener(ae -> {
-            // Cargar progreso guardado y pedir nombre de campaña antes de la intro
+            // cargar progreso guardado y solicitar nombre
             cargarProgresoHistoria();
             boolean accepted = mostrarNombreCampanaDialog();
             if (!accepted) {
-                // Cancelado: permanecer en el pre-menú
                 return;
             }
             frame.dispose();
-            // Mostrar cinemáticas solo si estamos en el primer nivel
+
+            // mostrar cinematica de intro si es el primer nivel
             if (historiaNivelActual == 0) {
                 String[] textos = new String[]{
                         "En los confines del multiverso... el Emperador extendió su dominio.",
@@ -124,22 +132,21 @@ public class Main {
                 };
                 CinematicManager.mostrarCinematicasConFondosBlocking(textos, fondos);
             }
-            // Pasar al menú de selección con restricciones según progreso
+
             mostrarMenuYArrancar(true);
         });
         btnPvP.addActionListener(ae -> { frame.dispose(); mostrarMenuYArrancar(false); });
         btnSalir.addActionListener(ae -> { frame.dispose(); System.exit(0); });
 
-        // Botón para ver Top 3 de mejores tiempos (por nombre)
         btnTop3.addActionListener(ae -> mostrarTop3Dialog(frame));
 
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
     }
 
-    // Selección de personaje para Historia por nivel (bloqueante)
+    // muestra dialogo de seleccion de personaje para modo historia
     public static String seleccionarPersonajeHistoria(int nivelIndex) {
-        // Opciones disponibles según progreso: siempre "Mr. Increíble" + oponentes vencidos
+        // obtener personajes disponibles segun progreso
         String[] opcionesVisibles = obtenerOpcionesJ1Historia();
 
         JDialog dialog = new JDialog((Frame) null, "Selecciona tu héroe", true);
@@ -157,7 +164,6 @@ public class Main {
         panel.setLayout(new BorderLayout(10, 10));
         dialog.setContentPane(panel);
 
-        // Fondo sugerido por nivel (solo visual)
         String fondoArchivo = switch (nivelIndex) {
             case 0 -> "metroVille.png";
             case 1 -> "batCave.png";
@@ -223,7 +229,6 @@ public class Main {
         }
         panel.add(acciones, BorderLayout.SOUTH);
 
-        // Inicializar preview
         actualizarPreviewPersonaje(preview, personajeIdFromNombre((String) cbJ1.getSelectedItem()), false);
         cbJ1.addItemListener(e -> {
             if (e.getStateChange() == ItemEvent.SELECTED) {
@@ -248,19 +253,20 @@ public class Main {
         return resultado[0];
     }
 
-    // Wrapper previo para compatibilidad con llamadas existentes
+    // muestra menu de seleccion de personajes y configuracion de partida
     public static void mostrarMenuYArrancar() { mostrarMenuYArrancar(false); }
 
+    // muestra menu de seleccion de personajes y configuracion de partida
     public static void mostrarMenuYArrancar(boolean historia) {
-        // Paleta pixel rojo/negro
+        // configuracion visual del tema
         Color PIXEL_BLACK = new Color(10, 10, 10);
         Color PIXEL_RED = new Color(170, 0, 0);
         Color PIXEL_RED_DARK = new Color(120, 0, 0);
         Font PIXEL_FONT = new Font("Courier New", Font.BOLD, 14);
 
-        // Nombres visibles (sin guiones bajos) y corrección de acento
+        // listas de personajes y fondos disponibles
         String[] personajesNombres = {"Darth Vader", "Iron Man", "Mr. Increíble", "Pyke", "Goku", "Batman", "Luke Skywalker", "Naruto", "Ash"};
-        // Archivos internos de fondo, mostrados con nombres legibles
+
         String[] fondosNombres = {
                 "Bilgewater",
                 "Konohagakure",
@@ -277,28 +283,30 @@ public class Main {
         frame.setLayout(new BorderLayout(10, 10));
         frame.setUndecorated(true);
         frame.setExtendedState(JFrame.MAXIMIZED_BOTH);
-        
-        // Panel principal con fondo personalizado
+
         BackgroundPanel mainPanel = new BackgroundPanel(null);
         mainPanel.setLayout(new BorderLayout(10, 10));
         frame.setContentPane(mainPanel);
 
-        // Controles superiores
-        // Controles superiores en tres columnas
+
         JPanel controles = new JPanel(new GridLayout(1, 3, 8, 8));
         controles.setOpaque(false);
-        // Columnas: J1 (izquierda), Mapas (centro), J2 (derecha)
+
         JPanel colIzq = new JPanel(new GridLayout(2, 1, 8, 8)); colIzq.setOpaque(false);
         JPanel colMid = new JPanel(new GridLayout(2, 1, 8, 8)); colMid.setOpaque(false);
         JPanel colDer = new JPanel(new GridLayout(2, 1, 8, 8)); colDer.setOpaque(false);
         JLabel lblJ1 = new JLabel("Jugador 1"); lblJ1.setForeground(PIXEL_RED); lblJ1.setFont(new Font("Courier New", Font.BOLD, 18));
         JLabel lblJ2 = new JLabel(historia ? "Oponente" : "Jugador 2"); lblJ2.setForeground(PIXEL_RED); lblJ2.setFont(new Font("Courier New", Font.BOLD, 18));
         JLabel lblBg = new JLabel("Selecciona un mapa"); lblBg.setForeground(PIXEL_RED); lblBg.setFont(new Font("Courier New", Font.BOLD, 18));
+        // crear comboboxes para seleccion de personajes y fondo
         JComboBox<String> cbJ1 = new JComboBox<>(personajesNombres);
         JComboBox<String> cbJ2 = new JComboBox<>(personajesNombres);
         JComboBox<String> cbFondo = new JComboBox<>(fondosNombres); cbFondo.setSelectedItem("Bilgewater");
-        // estilo combos pixel
-        for (JComboBox<String> cb : new JComboBox[]{cbJ1, cbJ2, cbFondo}) {
+
+        // configurar estilo de todos los comboboxes
+        @SuppressWarnings("unchecked")
+        JComboBox<String>[] combos = new JComboBox[]{cbJ1, cbJ2, cbFondo};
+        for (JComboBox<String> cb : combos) {
             cb.setBackground(PIXEL_BLACK);
             cb.setForeground(PIXEL_RED);
             cb.setFont(PIXEL_FONT);
@@ -322,8 +330,8 @@ public class Main {
         colDer.add(lblJ2); colDer.add(cbJ2);
         controles.add(colIzq); controles.add(colMid); controles.add(colDer);
 
-        // Previews con bordes pixelados
-        // Limpiar: solo dos previews (J1/J2) visibles
+
+        // crear panel de previsualizacion de personajes
         JPanel previews = new JPanel(new GridLayout(1, 2, 10, 10));
         previews.setOpaque(false);
         JLabel prevJ1 = new JLabel("", SwingConstants.CENTER);
@@ -340,41 +348,40 @@ public class Main {
         }
         previews.add(prevJ1);
         previews.add(prevJ2);
-        
-        // Overlay centrado con solo los dos recuadros
+
         JPanel overlay = new JPanel(new GridBagLayout());
         overlay.setOpaque(false);
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.gridx = 0; gbc.gridy = 0;
         gbc.anchor = GridBagConstraints.CENTER;
         overlay.add(previews, gbc);
-        // Inicializar previews por defecto al arrancar (donde existen los labels)
+
+        // mostrar previews iniciales de personajes
         actualizarPreviewPersonaje(prevJ1, "Darth_Vader", false);
         actualizarPreviewPersonaje(prevJ2, "Goku", true);
-        
-        // Eliminar/Comentar panel de 4 previews
-        // JPanel previews4 = new JPanel(new GridLayout(2, 2, 10, 10));
-        // previews4.setOpaque(false);
-        // JLabel prevDV = new JLabel("", SwingConstants.CENTER);
-        // JLabel prevGoku = new JLabel("", SwingConstants.CENTER);
-        // JLabel prevPyke = new JLabel("", SwingConstants.CENTER);
-        // JLabel prevIronMan = new JLabel("", SwingConstants.CENTER);
-        // for (JLabel p : new JLabel[]{prevDV, prevGoku, prevPyke, prevIronMan}) {
-        //     p.setPreferredSize(prevSize);
-        //     p.setOpaque(true);
-        //     p.setBackground(new Color(40, 40, 40, 200));
-        //     p.setBorder(javax.swing.BorderFactory.createCompoundBorder(
-        //         javax.swing.BorderFactory.createLineBorder(PIXEL_RED, 5),
-        //         javax.swing.BorderFactory.createLineBorder(PIXEL_BLACK, 4)
-        //     ));
-        // }
-        // previews4.add(prevDV);
-        // previews4.add(prevGoku);
-        // previews4.add(prevPyke);
-        // previews4.add(prevIronMan);
-        // overlay.add(previews4, gbc);
 
-        // Botones pixel
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        // crear botones de accion
         JButton btnIniciar = new JButton("Iniciar");
         JButton btnSalir = new JButton("Salir");
         for (JButton b : new JButton[]{btnIniciar, btnSalir}) {
@@ -389,11 +396,10 @@ public class Main {
         }
         JPanel acciones = new JPanel();
         acciones.setOpaque(false);
-        // Pre-menú ya eligió modo; no mostrar radios
+
         acciones.add(btnIniciar);
         acciones.add(btnSalir);
 
-        // Indicador de nivel actual (solo en Historia)
         JLabel lblNivel = new JLabel("", SwingConstants.CENTER);
         lblNivel.setOpaque(false);
         lblNivel.setFont(new Font("Monospaced", Font.BOLD, 22));
@@ -416,11 +422,9 @@ public class Main {
         mainPanel.add(overlay, BorderLayout.CENTER);
         mainPanel.add(acciones, BorderLayout.SOUTH);
 
-        // Hacer visible antes de cargar previews para evitar glitches iniciales
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
 
-        // Cargar previews iniciales (después de visible)
         SwingUtilities.invokeLater(() -> {
             String pj1IdInit = personajeIdFromNombre((String) cbJ1.getSelectedItem());
             String pj2IdInit = personajeIdFromNombre((String) cbJ2.getSelectedItem());
@@ -430,14 +434,13 @@ public class Main {
             frame.repaint();
         });
         String fondoInit = fondoArchivoFromNombre((String) cbFondo.getSelectedItem());
-        // Previews fijas adicionales
-        // Inicializaciones antiguas del panel de 4 previews (eliminadas)
-        // actualizarPreviewPersonaje(prevDV, "Darth_Vader", false);
-        // actualizarPreviewPersonaje(prevGoku, "Goku", false);
-        // actualizarPreviewPersonaje(prevPyke, "Pyke", false);
-        // actualizarPreviewPersonaje(prevIronMan, "Iron_Man", false);
-        
-        // Cargar fondo inicial del menú
+
+
+
+
+
+
+
         ImageIcon fondoInitIcon = cargarIcono("/resources/BackGround/" + fondoInit, 1920, 1080);
         if (fondoInitIcon != null) {
             ((BackgroundPanel)frame.getContentPane()).setBackgroundImage(fondoInitIcon.getImage());
@@ -455,60 +458,59 @@ public class Main {
             }
         });
 
-        // Si Historia está activa, aplicar restricciones por nivel
         if (historia) {
-            // Oponente y fondo por nivel
+
             String nombreOponente;
             String nombreFondo;
             String[] opcionesJ1;
             switch (historiaNivelActual) {
-                case 0 -> { // Nivel 1: Mr. Increíble vs Batman en Metroville
+                case 0 -> {
                     nombreOponente = "Batman";
                     nombreFondo = "Metro Ville";
                 }
-                case 1 -> { // Nivel 2: vs Iron Man en Batcave
+                case 1 -> {
                     nombreOponente = "Iron Man";
                     nombreFondo = "Batcave";
                 }
-                case 2 -> { // Nivel 3: vs Ash en Pokémon Stadium
+                case 2 -> {
                     nombreOponente = "Ash";
                     nombreFondo = "Pokémon Stadium";
                 }
-                case 3 -> { // Nivel 4: vs Naruto en Konoha
+                case 3 -> {
                     nombreOponente = "Naruto";
                     nombreFondo = "Konohagakure";
                 }
-                case 4 -> { // Nivel 5: vs Goku en Kame House
+                case 4 -> {
                     nombreOponente = "Goku";
                     nombreFondo = "Kame House";
                 }
-                case 5 -> { // Nivel 6: vs Pyke en Bilgewater
+                case 5 -> {
                     nombreOponente = "Pyke";
                     nombreFondo = "Bilgewater";
                 }
-                case 6 -> { // Nivel 7: vs Luke en granero
+                case 6 -> {
                     nombreOponente = "Luke Skywalker";
                     nombreFondo = "Luke House";
                 }
-                default -> { // Nivel 8: vs Darth Vader en Death Star
+                default -> {
                     nombreOponente = "Darth Vader";
                     nombreFondo = "Death Star";
                 }
             }
-            // Opciones de J1 según progreso (Mr. Increíble + derrotados)
+
             opcionesJ1 = obtenerOpcionesJ1Historia();
-            // Aplicar valores iniciales para Historia
+
             cbJ2.setSelectedItem(nombreOponente);
             cbFondo.setSelectedItem(nombreFondo);
             cbJ2.setEnabled(false);
-            lblJ2.setEnabled(true); // mostrar como etiqueta informativa
+            lblJ2.setEnabled(true);
             cbFondo.setEnabled(false);
             lblBg.setEnabled(true);
-            // Restringir J1
+
             cbJ1.setModel(new DefaultComboBoxModel<>(opcionesJ1));
             cbJ1.setSelectedItem(opcionesJ1[0]);
         } else {
-            // PvP: libre
+
             cbJ2.setEnabled(true);
             lblJ2.setEnabled(true);
             cbFondo.setEnabled(true);
@@ -517,49 +519,54 @@ public class Main {
 
         btnSalir.addActionListener(ae -> { frame.dispose(); mostrarPreMenu(); });
         btnIniciar.addActionListener(ae -> {
+            // obtener selecciones del usuario
             String pj1 = personajeIdFromNombre((String) cbJ1.getSelectedItem());
             String pj2 = personajeIdFromNombre((String) cbJ2.getSelectedItem());
             String fondo = fondoArchivoFromNombre((String) cbFondo.getSelectedItem());
             frame.dispose();
-            // Modo Historia: arrancar niveles definidos y aplicar selección de J1
+
             if (historia) {
-                System.out.println("[Historia] Iniciar combate desde menú. nivelActual=" + (historiaNivelActual) + ", pj1Sel=" + pj1 + ", oppUI=" + pj2 + ", fondoUI=" + fondo);
+                // configurar modo historia con niveles predefinidos
+                System.out.println("[Historia] Iniciar combate desde menu. nivelActual=" + (historiaNivelActual) + ", pj1Sel=" + pj1 + ", oppUI=" + pj2 + ", fondoUI=" + fondo);
                 Level[] niveles = new Level[]{
-                        // 1: Mr. Increíble vs Batman en Metroville
+
+
                         Level.simple("Batman", "metroVille.png", BotIA.Nivel.FACIL),
-                        // 2: Batman/Mr Increíble vs Iron Man en Batcave
+
+
                         Level.simple("Iron_Man", "batCave.png", BotIA.Nivel.NORMAL),
-                        // 3: vs Ash en Pokémon Stadium
+
                         Level.simple("Ash", "pokemonStaduim.png", BotIA.Nivel.NORMAL),
-                        // 4: vs Naruto en Konoha
+
                         Level.simple("Naruto", "aldeaKonoha.png", BotIA.Nivel.NORMAL),
-                        // 5: vs Goku en Kame House
+
                         Level.simple("Goku", "kameHouse.png", BotIA.Nivel.DIFICIL),
-                        // 6: vs Pyke en Bilgewater
+
                         Level.simple("Pyke", "aguasEstancadas.png", BotIA.Nivel.DIFICIL),
-                        // 7: vs Luke en granero
+
                         Level.simple("Luke_Skywalker", "graneroDeLuke.png", BotIA.Nivel.DIFICIL),
-                        // 8: Jefe final Darth Vader en Death Star (invulnerabilidad, 5x vida, oneshot al 10%)
+
                         Level.finalBoss("Darth_Vader", "deathStar.png", BotIA.Nivel.INSANO)
                 };
+                // crear instancia del juego y configurar modo historia
                 Juego juego = new Juego();
-                // Aplicar J1 elegido y forzar oponente/fondo del nivel como guardarraíl ANTES de activar Historia
+
                 int idx = Math.max(0, Math.min(niveles.length - 1, getHistoriaNivelActual()));
                 Level lvlSel = niveles[idx];
-                juego.aplicarSeleccionInicial(pj1, lvlSel.oponenteId, lvlSel.fondoArchivo);
+                juego.aplicarSeleccionInicial(pj1, lvlSel.getOponenteId(), lvlSel.getFondoArchivo());
                 juego.activarStoryMode(niveles);
                 System.out.println("[Historia] Juego creado y configurado. Esperando que J2 sea del nivel y fondo del nivel.");
             } else {
-                // PvP clásico
+                // modo versus - crear juego con selecciones del usuario
                 Juego juego = new Juego();
                 juego.aplicarSeleccionInicial(pj1, pj2, fondo);
             }
         });
 
-        // Ya visible arriba
     }
 
-    // Cinemática estilo Undertale: texto grande en caja negra pixel, bloqueante
+    // muestra dialogo cinematico estilo undertale (no usado actualmente)
+    @SuppressWarnings("unused")
     private static void mostrarCinematicaUndertaleBlocking(String texto) {
         JDialog dialog = new JDialog((Frame) null, "Cinemática", true);
         dialog.setUndecorated(true);
@@ -600,14 +607,17 @@ public class Main {
         dialog.setVisible(true);
     }
 
+    // establece el nivel actual del modo historia (0-7)
     public static void setHistoriaNivelActual(int idx) {
         historiaNivelActual = Math.max(0, Math.min(7, idx));
     }
 
+    // obtiene el nivel actual del modo historia
     public static int getHistoriaNivelActual() {
         return historiaNivelActual;
     }
 
+    // guarda el progreso del modo historia en el registro del sistema
     public static void guardarProgresoHistoria() {
         try {
             Preferences prefs = Preferences.userRoot().node("MultiverseDominion");
@@ -624,6 +634,7 @@ public class Main {
         }
     }
 
+    // carga el progreso guardado del modo historia
     public static void cargarProgresoHistoria() {
         try {
             Preferences prefs = Preferences.userRoot().node("MultiverseDominion");
@@ -639,7 +650,7 @@ public class Main {
         }
     }
 
-    // --- Temporizador de campaña y Top 3 ---
+    // inicia el temporizador para medir tiempo total de campana
     public static void iniciarTemporizadorHistoria() {
         try {
             if (historiaStartMillis <= 0) {
@@ -654,6 +665,7 @@ public class Main {
         }
     }
 
+    // reinicia el temporizador de campana
     public static void reiniciarTemporizadorHistoria() {
         try {
             historiaStartMillis = System.currentTimeMillis();
@@ -664,8 +676,10 @@ public class Main {
         }
     }
 
+    // obtiene el tiempo de inicio de la campana
     public static long getHistoriaStartMillis() { return historiaStartMillis; }
 
+    // finaliza la campana y registra el tiempo en el top 3
     public static long finalizarCampaniaYRegistrarTiempo() {
         long elapsed = -1L;
         try {
@@ -675,7 +689,7 @@ public class Main {
                 elapsed = System.currentTimeMillis() - start;
                 registrarTiempoEnTop(elapsed);
             }
-            // limpiar temporizador
+
             historiaStartMillis = -1L;
             prefs.putLong("historiaStartMillis", -1L);
             System.out.println("[Historia] Campaña finalizada. Tiempo total: " + elapsed + " ms");
@@ -685,6 +699,7 @@ public class Main {
         return elapsed;
     }
 
+    // registra un tiempo completado en el ranking top 3
     private static void registrarTiempoEnTop(long elapsedMillis) {
         try {
             Preferences prefs = Preferences.userRoot().node("MultiverseDominion");
@@ -699,7 +714,7 @@ public class Main {
             if (b1 > 0) entries.add(new long[]{b1, 1});
             if (b2 > 0) entries.add(new long[]{b2, 2});
             if (b3 > 0) entries.add(new long[]{b3, 3});
-            // índice 0 = nuevo registro
+
             entries.add(new long[]{elapsedMillis, 0});
             entries.sort(java.util.Comparator.comparingLong(a -> a[0]));
 
@@ -754,7 +769,6 @@ public class Main {
         return String.format("%02d:%02d.%02d", mins, secs, hundredths);
     }
 
-    // Formato hh:mm:ss para Top 3
     public static String formatMillisHMS(long ms) {
         if (ms <= 0) return "-";
         long totalSeconds = ms / 1000;
@@ -770,7 +784,6 @@ public class Main {
         dialog.setLayout(new BorderLayout(10, 10));
         dialog.setSize(700, 420);
         dialog.setLocationRelativeTo(owner);
-        Color PIXEL_BLACK = new Color(10, 10, 10);
         Color PIXEL_RED = new Color(170, 0, 0);
         Color PIXEL_RED_DARK = new Color(120, 0, 0);
 
@@ -836,9 +849,8 @@ public class Main {
         return historiaNombreCampana != null ? historiaNombreCampana : "";
     }
 
-    // Mostrar intro de historia y luego ir al menú de selección
     public static void mostrarIntroHistoria() {
-        // Preguntar nombre de campaña antes de mostrar la intro
+
         boolean accepted = mostrarNombreCampanaDialog();
         if (!accepted) {
             mostrarPreMenu();
@@ -863,7 +875,6 @@ public class Main {
         mostrarMenuYArrancar(true);
     }
 
-    // Diálogo pixel para pedir el nombre de la campaña
     private static boolean mostrarNombreCampanaDialog() {
         JDialog dialog = new JDialog((Frame) null, "Nombre de campaña", true);
         dialog.setUndecorated(true);
@@ -943,8 +954,7 @@ public class Main {
         return Boolean.TRUE.equals(acceptedFlag[0]);
     }
 
-    // Opciones de J1 en Historia según progreso:
-    // Siempre "Mr. Increíble" + cada oponente de niveles ya superados.
+
     public static String[] obtenerOpcionesJ1Historia() {
         java.util.List<String> opciones = new java.util.ArrayList<>();
         opciones.add("Mr. Increíble");
@@ -968,16 +978,9 @@ public class Main {
     private static void actualizarPreviewPersonaje(JLabel label, String personajeId, boolean flip) {
         String idleRel = idlePath(personajeId);
         int containerW = label.getWidth() > 0 ? label.getWidth() : label.getPreferredSize().width;
-        int containerH = label.getHeight() > 0 ? label.getHeight() : label.getPreferredSize().height;
         boolean esGif = esGifPath(idleRel);
-        // Ajuste de altura normalizada por personaje
-        int alturaNormalizada = 360;
-        if ("Darth_Vader".equals(personajeId)) {
-            alturaNormalizada = 300;
-        } else if ("Ash".equals(personajeId)) {
-            // Achicar un poco más el idle de Ash en el menú
-            alturaNormalizada = 280;
-        }
+
+        int alturaNormalizada = 320;
 
         ImageIcon base = esGif
                 ? cargarIconoGif("/resources/" + idleRel)
@@ -989,7 +992,7 @@ public class Main {
                 int iw = base.getIconWidth();
                 int ih = base.getIconHeight();
                 if (iw <= 0 || ih <= 0) {
-                    // Mostrar mientras carga y reintentar cuando el GIF reporte tamaño
+
                     label.setHorizontalAlignment(SwingConstants.CENTER);
                     label.setVerticalAlignment(SwingConstants.CENTER);
                     label.setIcon(base);
@@ -1024,7 +1027,7 @@ public class Main {
                     label.setIcon(iconFinal);
                 }
             } else {
-                // PNG/JPG ya escalados: solo centrar y asignar
+
                 label.setHorizontalAlignment(SwingConstants.CENTER);
                 label.setVerticalAlignment(SwingConstants.CENTER);
                 label.setIcon(base);
@@ -1044,6 +1047,8 @@ public class Main {
         }
     }
 
+    // actualiza la previsualizacion de fondo (no usado actualmente)
+    @SuppressWarnings("unused")
     private static void actualizarPreviewFondo(JLabel label, String fondoArchivo) {
         ImageIcon icon = cargarIcono("/resources/BackGround/" + fondoArchivo, 200, 200);
         if (icon != null) {
@@ -1053,33 +1058,26 @@ public class Main {
         }
     }
 
+    // carga un icono desde recursos y lo escala al tamano especificado
     private static ImageIcon cargarIcono(String classpathResource, int w, int h) {
         try {
             ImageIcon icon = null;
-            // Primero intentar por classpath
+
             java.net.URL url = Main.class.getResource(classpathResource);
             if (url != null) {
                 icon = new ImageIcon(url);
                 System.out.println("[Menu] Icono por classpath: " + classpathResource);
             } else {
-                // Fallback 1: bin/resources cuando se ejecuta con compilados
-                String rel = classpathResource.startsWith("/resources/") ? classpathResource.substring("/resources/".length()) : classpathResource;
-                java.io.File fBin = new java.io.File("bin/resources/" + rel);
-                if (fBin.exists()) {
-                    icon = new ImageIcon(fBin.toURI().toURL());
-                    System.out.println("[Menu] Icono desde bin/resources: " + fBin.getPath());
+                // fallback: cargar desde directorio src
+                java.io.File fSrc = new java.io.File("src" + classpathResource);
+                if (fSrc.exists()) {
+                    icon = new ImageIcon(fSrc.toURI().toURL());
+                    System.out.println("[Menu] Icono desde src/resources: " + fSrc.getPath());
                 } else {
-                    // Fallback 2: src/resources cuando se ejecuta desde IDE
-                    java.io.File fSrc = new java.io.File("src" + classpathResource);
-                    if (fSrc.exists()) {
-                        icon = new ImageIcon(fSrc.toURI().toURL());
-                        System.out.println("[Menu] Icono desde src/resources: " + fSrc.getPath());
-                    } else {
-                        System.err.println("[Menu] Icono no encontrado: " + classpathResource);
-                    }
+                    System.err.println("[Menu] Icono no encontrado: " + classpathResource);
                 }
             }
-            // No escalar GIFs animados; escalar PNG/JPG
+
             boolean esGif = classpathResource.toLowerCase().endsWith(".gif");
             if (icon != null) {
                 if (esGif) {
@@ -1100,7 +1098,7 @@ public class Main {
         }
     }
 
-    // Helpers específicos para PNG y GIF
+    // verifica si una ruta corresponde a un archivo gif
     private static boolean esGifPath(String path) {
         return path != null && path.toLowerCase().endsWith(".gif");
     }
@@ -1113,19 +1111,12 @@ public class Main {
                 icon = new ImageIcon(url);
                 System.out.println("[Menu] GIF por classpath: " + classpathResource);
             } else {
-                String rel = classpathResource.startsWith("/resources/") ? classpathResource.substring("/resources/".length()) : classpathResource;
-                java.io.File fBin = new java.io.File("bin/resources/" + rel);
-                if (fBin.exists()) {
-                    icon = new ImageIcon(fBin.toURI().toURL());
-                    System.out.println("[Menu] GIF desde bin/resources: " + fBin.getPath());
+                java.io.File fSrc = new java.io.File("src" + classpathResource);
+                if (fSrc.exists()) {
+                    icon = new ImageIcon(fSrc.toURI().toURL());
+                    System.out.println("[Menu] GIF desde src/resources: " + fSrc.getPath());
                 } else {
-                    java.io.File fSrc = new java.io.File("src" + classpathResource);
-                    if (fSrc.exists()) {
-                        icon = new ImageIcon(fSrc.toURI().toURL());
-                        System.out.println("[Menu] GIF desde src/resources: " + fSrc.getPath());
-                    } else {
-                        System.err.println("[Menu] GIF no encontrado: " + classpathResource);
-                    }
+                    System.err.println("[Menu] GIF no encontrado: " + classpathResource);
                 }
             }
             return icon;
@@ -1143,19 +1134,12 @@ public class Main {
                 icon = new ImageIcon(url);
                 System.out.println("[Menu] PNG/JPG por classpath: " + classpathResource);
             } else {
-                String rel = classpathResource.startsWith("/resources/") ? classpathResource.substring("/resources/".length()) : classpathResource;
-                java.io.File fBin = new java.io.File("bin/resources/" + rel);
-                if (fBin.exists()) {
-                    icon = new ImageIcon(fBin.toURI().toURL());
-                    System.out.println("[Menu] PNG/JPG desde bin/resources: " + fBin.getPath());
+                java.io.File fSrc = new java.io.File("src" + classpathResource);
+                if (fSrc.exists()) {
+                    icon = new ImageIcon(fSrc.toURI().toURL());
+                    System.out.println("[Menu] PNG/JPG desde src/resources: " + fSrc.getPath());
                 } else {
-                    java.io.File fSrc = new java.io.File("src" + classpathResource);
-                    if (fSrc.exists()) {
-                        icon = new ImageIcon(fSrc.toURI().toURL());
-                        System.out.println("[Menu] PNG/JPG desde src/resources: " + fSrc.getPath());
-                    } else {
-                        System.err.println("[Menu] PNG/JPG no encontrado: " + classpathResource);
-                    }
+                    System.err.println("[Menu] PNG/JPG no encontrado: " + classpathResource);
                 }
             }
             if (icon != null && icon.getIconWidth() > 0 && icon.getIconHeight() > 0) {
@@ -1169,6 +1153,8 @@ public class Main {
         }
     }
 
+    // crea un icono volteado horizontalmente (no usado actualmente)
+    @SuppressWarnings("unused")
     private static Icon flipIcon(ImageIcon icon) {
         return new Icon() {
             @Override
@@ -1188,6 +1174,7 @@ public class Main {
         };
     }
 
+    // obtiene la ruta del sprite idle de un personaje
     private static String idlePath(String personajeId) {
         return switch (personajeId) {
             case "Darth_Vader" -> "Darth_Vader/images/dartVader_idle.png";
@@ -1195,14 +1182,15 @@ public class Main {
             case "Mr_Increible" -> "Mr_Increible/images/mrIncreible_idle.png";
             case "Pyke" -> "Pyke/images/pyke_idle.png";
             case "Goku" -> "Goku/images/goku_idle.png";
-            case "Batman" -> "Batman/batma.idle.png";
-            case "Luke_Skywalker" -> "Luke Skywalker/luke_idle.png";
-            case "Naruto" -> "Naruto/naruto_idle.png";
+            case "Batman" -> "Batman/images/batma.idle.png";
+            case "Luke_Skywalker" -> "Luke Skywalker/images/luke_idle.png";
+            case "Naruto" -> "Naruto/images/naruto_idle.png";
             case "Ash" -> "Pokemon/Ash/images/ash_idle.png";
             default -> null;
         };
     }
 
+    // convierte nombre de personaje mostrado a id interno
     private static String personajeIdFromNombre(String nombre) {
         return switch (nombre) {
             case "Darth Vader" -> "Darth_Vader";
@@ -1218,6 +1206,7 @@ public class Main {
         };
     }
 
+    // convierte nombre de fondo mostrado a archivo interno
     private static String fondoArchivoFromNombre(String nombre) {
         return switch (nombre) {
             case "Bilgewater" -> "aguasEstancadas.png";
@@ -1231,42 +1220,43 @@ public class Main {
             default -> "deathStar.png";
         };
     }
+    // escala un icono manteniendo animacion (no usado actualmente)
+    @SuppressWarnings("unused")
     private static Icon scaleIconKeepAnim(ImageIcon icon, int containerW, int targetH) {
         return new Icon() {
             @Override
             public void paintIcon(Component c, Graphics g, int x, int y) {
                 int iw = icon.getIconWidth();
                 int ih = icon.getIconHeight();
-                // Si aún no está cargado el tamaño, pintar sin escalar para evitar caja vacía
+
                 if (iw <= 0 || ih <= 0) {
                     icon.paintIcon(c, g, x + (containerW - icon.getIconWidth()) / 2, y + (targetH - icon.getIconHeight()) / 2);
                     return;
                 }
-                
-                // Escala basada en altura normalizada, manteniendo proporción
+
                 double escalaAltura = (double) targetH / ih;
                 int anchoNormalizado = (int) Math.round(iw * escalaAltura);
-                
-                // Centrar horizontalmente en el contenedor
+
                 int dx = x + (containerW - anchoNormalizado) / 2;
-                int dy = y + (targetH - targetH) / 2; // centrado vertical en el alto del contenedor
+                int dy = y + (targetH - targetH) / 2;
 
                 System.out.println("[Menu] Pintando preview (no flip) iw=" + iw + " ih=" + ih + " escala=" + escalaAltura);
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.translate(dx, dy);
                 g2.scale(escalaAltura, escalaAltura);
-                // Delegar el pintado en ImageIcon para conservar la animación del GIF
+
                 icon.paintIcon(c, g2, 0, 0);
                 g2.dispose();
             }
             @Override
             public int getIconWidth() { return containerW; }
             @Override
-            public int getIconHeight() { return targetH; } // altura del contenedor = targetH
+            public int getIconHeight() { return targetH; }
         };
     }
 
-    // Igual que scaleIconKeepAnim pero con soporte de flip horizontal
+    // escala un icono con opcion de volteo horizontal
+    @SuppressWarnings("unused")
     private static Icon scaleIconKeepAnimWithFlip(ImageIcon icon, int containerW, int targetH, boolean flip) {
         return new Icon() {
             @Override
@@ -1280,11 +1270,11 @@ public class Main {
                 double escalaAltura = (double) targetH / ih;
                 int anchoNormalizado = (int) Math.round(iw * escalaAltura);
                 int dx = x + (containerW - anchoNormalizado) / 2;
-                int dy = y + (targetH - targetH) / 2; // centrado vertical
+                int dy = y + (targetH - targetH) / 2;
 
                 Graphics2D g2 = (Graphics2D) g.create();
                 if (flip) {
-                    // Trasladar al borde derecho del área escalada y reflejar en X
+                    // aplicar volteo horizontal
                     g2.translate(dx + anchoNormalizado, dy);
                     g2.scale(-escalaAltura, escalaAltura);
                 } else {
@@ -1302,7 +1292,8 @@ public class Main {
         };
     }
 
-    // Para GIFs: no escalar, solo centrar y delegar a ImageIcon para conservar animación
+    // centra un icono en un contenedor (no usado actualmente)
+    @SuppressWarnings("unused")
     private static Icon centerIconKeepAnim(ImageIcon icon, int containerW, int containerH) {
         return new Icon() {
             @Override
@@ -1325,6 +1316,6 @@ public class Main {
     }
 }
 
-// Inicializar previews por defecto al arrancar
-// actualizarPreviewPersonaje(prevJ1, "Darth_Vader", false);
-// actualizarPreviewPersonaje(prevJ2, "Goku", true);
+
+
+
